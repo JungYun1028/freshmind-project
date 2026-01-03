@@ -187,7 +187,7 @@ export const products: Product[] = [
     usedIn: ["찌개/국/탕", "볶음", "전/튀김"],
     reviews: 4521,
     rating: 4.6,
-    image: "https://images.unsplash.com/photo-1610566303912-e6b951e46496?w=400",
+    image: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400",
     tags: ["저렴", "국내산"],
     stock: 200,
     isKurlyOnly: false
@@ -204,7 +204,7 @@ export const products: Product[] = [
     usedIn: ["구이", "볶음", "찌개/국/탕"],
     reviews: 3821,
     rating: 4.7,
-    image: "https://images.unsplash.com/photo-1628772516990-e553ee9fddc4?w=400",
+    image: "https://images.unsplash.com/photo-1566305977571-5666677c6e98?w=400",
     tags: ["식감좋음"],
     stock: 140,
     isKurlyOnly: true
@@ -380,7 +380,7 @@ export const products: Product[] = [
     usedIn: ["생식/간식"],
     reviews: 3421,
     rating: 4.5,
-    image: "https://images.unsplash.com/photo-1587049352846-4a222e784830?w=400",
+    image: "https://images.unsplash.com/photo-1589984662646-e7b2e4962f18?w=400",
     tags: ["여름", "달콤"],
     stock: 60,
     isKurlyOnly: false
@@ -730,7 +730,7 @@ export const products: Product[] = [
     usedIn: ["파스타/면", "볶음", "찌개/국/탕", "튀김"],
     reviews: 9821,
     rating: 4.7,
-    image: "https://images.unsplash.com/photo-1559717865-a99cac1c95d8?w=400",
+    image: "https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=400",
     tags: ["손질", "냉동"],
     stock: 150,
     isKurlyOnly: true
@@ -1095,7 +1095,7 @@ export const products: Product[] = [
     usedIn: ["밥/죽"],
     reviews: 9821,
     rating: 4.4,
-    image: "https://images.unsplash.com/photo-1612526735942-fa027c0ff5d4?w=400",
+    image: "https://images.unsplash.com/photo-1633945274309-b2c1b3acc995?w=400",
     tags: ["간편", "1인용"],
     stock: 200,
     isKurlyOnly: false
@@ -1286,7 +1286,7 @@ export const products: Product[] = [
     usedIn: ["샐러드", "파스타/면", "볶음"],
     reviews: 9821,
     rating: 4.8,
-    image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400",
+    image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&q=80",
     tags: ["엑스트라버진", "프리미엄"],
     stock: 140,
     badge: "건강식",
@@ -1355,7 +1355,7 @@ export const products: Product[] = [
     usedIn: ["찌개/국/탕", "볶음", "구이"],
     reviews: 11234,
     rating: 4.5,
-    image: "https://images.unsplash.com/photo-1588165478191-7f80c007d3cc?w=400",
+    image: "https://images.unsplash.com/photo-1619474563616-4ce2e8c46b9c?w=400",
     tags: ["간편", "국내산"],
     stock: 180,
     isKurlyOnly: false

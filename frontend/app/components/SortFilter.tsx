@@ -3,10 +3,12 @@
 interface SortFilterProps {
   sortBy: string;
   onSortChange: (sortBy: string) => void;
+  isProfileSet: boolean;
 }
 
-export default function SortFilter({ sortBy, onSortChange }: SortFilterProps) {
+export default function SortFilter({ sortBy, onSortChange, isProfileSet }: SortFilterProps) {
   const sortOptions = [
+    ...(isProfileSet ? [{ value: "personalized", label: "🎯 맞춤 추천순" }] : []),
     { value: "popular", label: "인기순" },
     { value: "price-low", label: "낮은 가격순" },
     { value: "price-high", label: "높은 가격순" },
