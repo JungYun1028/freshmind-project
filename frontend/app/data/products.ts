@@ -1095,7 +1095,7 @@ export const products: Product[] = [
     usedIn: ["밥/죽"],
     reviews: 9821,
     rating: 4.4,
-    image: "https://images.unsplash.com/photo-1633945274309-b2c1b3acc995?w=400",
+    image: "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=400",
     tags: ["간편", "1인용"],
     stock: 200,
     isKurlyOnly: false

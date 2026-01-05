@@ -4,7 +4,10 @@ frontend/node_modules/
 backend/__pycache__/
 backend/*.pyc
 backend/venv/
+backend/.venv/
 backend/env/
+.venv/
+venv/
 
 # Next.js
 frontend/.next/

@@ -34,7 +34,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
           value={query}
           onChange={handleChange}
           placeholder="추천해먹을수있는거"
-          className="w-full pl-10 pr-10 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full pl-10 pr-10 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900"
         />
         
         {query && (
