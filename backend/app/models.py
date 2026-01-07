@@ -1,123 +1,93 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Table
+"""
+SQLAlchemy ORM 모델
+schema.sql과 일치하도록 작성됨
+"""
+
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
-# Association table for user preferences
-user_preferences = Table(
-    'user_preferences',
-    Base.metadata,
-    Column('user_id', Integer, ForeignKey('users.id')),
-    Column('category_id', Integer, ForeignKey('categories.id'))
-)
 
 class User(Base):
+    """사용자 프로필 정보"""
     __tablename__ = "users"
     
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String, nullable=False)
-    full_name = Column(String)
-    phone = Column(String)
-    is_active = Column(Boolean, default=True)
+    user_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    birth_date = Column(DateTime, nullable=False)
+    gender = Column(String(10))  # 'M', 'F', 'U'
+    age_group = Column(String(10))  # '10s', '20s', '30s', '40s', '50s+'
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    orders = relationship("Order", back_populates="user")
-    cart_items = relationship("CartItem", back_populates="user")
-    preferences = relationship("Category", secondary=user_preferences, back_populates="users")
     purchase_history = relationship("PurchaseHistory", back_populates="user")
+    chat_messages = relationship("ChatMessage", back_populates="user")
 
-class Category(Base):
-    __tablename__ = "categories"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False)
-    description = Column(Text)
-    icon = Column(String)
-    
-    # Relationships
-    products = relationship("Product", back_populates="category")
-    users = relationship("User", secondary=user_preferences, back_populates="preferences")
 
 class Product(Base):
+    """상품 정보 및 타겟팅 데이터"""
     __tablename__ = "products"
     
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, index=True)
+    product_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
     description = Column(Text)
-    price = Column(Float, nullable=False)
-    original_price = Column(Float)
-    discount_percentage = Column(Float, default=0)
-    image_url = Column(String)
-    category_id = Column(Integer, ForeignKey("categories.id"))
-    stock = Column(Integer, default=0)
-    unit = Column(String)  # kg, g, ea, etc.
-    origin = Column(String)  # Country/region of origin
-    is_organic = Column(Boolean, default=False)
-    is_featured = Column(Boolean, default=False)
-    rating = Column(Float, default=0.0)
+    category = Column(String(50))
+    sub_category = Column(String(50))
+    price = Column(Numeric(10, 2), nullable=False)
+    original_price = Column(Numeric(10, 2))
+    image_url = Column(String(500))
+    
+    rating = Column(Numeric(3, 2), default=0)
     review_count = Column(Integer, default=0)
+    purchase_count = Column(Integer, default=0)
+    
+    target_gender = Column(String(20))  # 'all', 'male', 'female', 'male-oriented', 'female-oriented'
+    target_age_groups = Column(Text)  # JSON 배열 형태: '["20s", "30s"]'
+    used_in = Column(Text)  # JSON 배열 형태: '["찌개/국/탕", "볶음"]'
+    tags = Column(Text)  # JSON 배열 형태: '["유기농", "국내산"]'
+    
+    stock = Column(Integer, default=0)
+    badge = Column(String(50))
+    is_kurly_only = Column(Boolean, default=False)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    category = relationship("Category", back_populates="products")
-    cart_items = relationship("CartItem", back_populates="product")
-    order_items = relationship("OrderItem", back_populates="product")
+    purchase_history = relationship("PurchaseHistory", back_populates="product")
 
-class CartItem(Base):
-    __tablename__ = "cart_items"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    product_id = Column(Integer, ForeignKey("products.id"))
-    quantity = Column(Integer, nullable=False, default=1)
-    added_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Relationships
-    user = relationship("User", back_populates="cart_items")
-    product = relationship("Product", back_populates="cart_items")
-
-class Order(Base):
-    __tablename__ = "orders"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    total_amount = Column(Float, nullable=False)
-    status = Column(String, default="pending")  # pending, confirmed, shipped, delivered, cancelled
-    delivery_address = Column(Text)
-    delivery_time = Column(String)
-    payment_method = Column(String)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # Relationships
-    user = relationship("User", back_populates="orders")
-    items = relationship("OrderItem", back_populates="order")
-
-class OrderItem(Base):
-    __tablename__ = "order_items"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    product_id = Column(Integer, ForeignKey("products.id"))
-    quantity = Column(Integer, nullable=False)
-    price = Column(Float, nullable=False)
-    
-    # Relationships
-    order = relationship("Order", back_populates="items")
-    product = relationship("Product", back_populates="order_items")
 
 class PurchaseHistory(Base):
+    """사용자 구매이력"""
     __tablename__ = "purchase_history"
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    product_id = Column(Integer, ForeignKey("products.id"))
-    quantity = Column(Integer)
-    purchased_at = Column(DateTime(timezone=True), server_default=func.now())
+    purchase_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.product_id"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    purchased_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
     user = relationship("User", back_populates="purchase_history")
+    product = relationship("Product", back_populates="purchase_history")
 
+
+class ChatMessage(Base):
+    """AI 챗봇 대화 내역 및 감정 분석 결과"""
+    __tablename__ = "chat_messages"
+    
+    message_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    sender = Column(String(20), nullable=False)  # 'user' or 'ai'
+    message_text = Column(Text, nullable=False)
+    
+    sentiment = Column(String(20))  # 'positive', 'neutral', 'negative'
+    sentiment_score = Column(Float)
+    
+    recommended_products = Column(Text)  # JSON 배열: '[1, 4, 5]'
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="chat_messages")
