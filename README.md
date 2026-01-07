@@ -16,9 +16,11 @@
 - 개인화 추천의 기초 데이터
 
 ### 2. 상품 정렬 화면
-- **정렬 옵션**: 인기순, 신상품순, 가격순, 별점순
+- **정렬 옵션**: 인기순, 신상품순, 가격순, 별점순, 개인화 추천순
+- **구매이력 기반 추천**: 최근 구매이력과 유사한 상품 우선 추천
 - 성별/나이별 맞춤 상품 자동 표시
 - 카테고리별 필터링 (10개 카테고리)
+- **핫한 요리 탭**: 구매하지 않은 트렌드 상품 추천
 
 ### 3. AI 챗봇 (핵심 기능)
 - 위치: 화면 하단 우측 고정
@@ -50,6 +52,10 @@ Products (상품 정보)
   └─ target_gender, target_age_groups (개인화 필드)
   └─ used_in (요리 용도)
   
+Purchase_History (구매이력)
+  └─ purchase_id, user_id, product_id, quantity
+  └─ purchased_at (구매일시)
+  
 Chat_Messages (챗봇 대화)
   └─ message_id, user_id, message_text
   └─ sentiment, sentiment_score (감정 분석)
@@ -69,6 +75,11 @@ product_id, name, category, price, rating
 target_age_groups: ["20s", "30s", "40s", "50s+"]
 target_gender: "all" | "male-oriented" | "female-oriented"
 used_in: ["찌개/국/탕", "볶음", "샐러드", ...]
+```
+
+**Purchase_History** (구매이력) ✅ 테이블 추가 완료
+```sql
+purchase_id, user_id, product_id, quantity, purchased_at, created_at
 ```
 
 **Chat_Messages**
@@ -93,9 +104,17 @@ POST /profile
 ### 2. 상품 조회
 ```
 GET /products?sort_by=popularity&limit=20
+GET /api/products/recommended?user_id={user_id}&limit=50
+GET /api/products/trending?user_id={user_id}&limit=20
 ```
 
-### 3. 챗봇 메시지 (WebSocket)
+### 3. 구매이력 조회
+```
+GET /api/users/{user_id}/purchase-summary
+GET /api/users/{user_id}/purchase-history?limit=50&offset=0
+```
+
+### 4. 챗봇 메시지 (WebSocket)
 ```
 WS /chat/stream
 → {"action": "send", "message": "아이 간식 추천해줄래?"}
@@ -140,6 +159,12 @@ psql freshmind_db -f backend/database/schema.sql
 
 # 100개 상품 데이터 import
 python3 backend/database/load_products_to_db.py
+
+# 가상 유저 계정 생성 (3개)
+python3 backend/database/load_users_to_db.py
+
+# 구매이력 더미데이터 생성 (최근 6개월)
+python3 backend/database/load_purchase_history_to_db.py
 ```
 
 ## 📦 프로젝트 구조
@@ -193,19 +218,39 @@ freshmind-project/
 }
 ```
 
-## 🤖 AI 챗봇 로직
+## 🤖 추천 알고리즘
 
-### 추천 알고리즘
+### 개인화 추천 로직
+```
+1. 구매이력 기반 추천 (최우선)
+   - 최근 구매한 상품과 유사한 상품
+   - 같은 카테고리 내 미구매 상품
+   - 반복 구매 상품 우선순위 상승
+   +
+2. 사용자 프로필 (나이/성별)
+   - target_age_groups, target_gender 매칭
+   +
+3. 인기도 기반 추천
+   - 리뷰 수 × 평점
+   ↓
+4. 통합 추천 점수 계산
+   ↓
+5. 상위 상품 추천 + 이유 설명
+```
+
+### AI 챗봇 로직
 ```
 1. 사용자 프로필 (나이/성별)
    +
 2. 메시지 감정 분석 (positive/neutral/negative)
    +
 3. 키워드 추출 (간식, 다이어트, 건강 등)
+   +
+4. 구매이력 분석
    ↓
-4. 타겟팅 데이터 매칭
+5. 타겟팅 데이터 매칭
    ↓
-5. 상위 3-5개 상품 추천 + 이유 설명
+6. 상위 3-5개 상품 추천 + 이유 설명
 ```
 
 ### 감정별 추천 전략
@@ -235,13 +280,51 @@ freshmind-project/
 - [x] PostgreSQL DB 설정
 - [x] 상품 데이터 DB 저장
 
-### 진행 중
-- [ ] FastAPI 백엔드 구축
+### 진행 중 / 예정
+
+#### 요구사항 ①: 가상 유저 계정 생성
+- [x] 유저 페르소나 정의 완료
+- [x] Users 테이블 스키마 확인 완료
+- [x] 스키마 통일 완료 (schema.sql 기준)
+- [ ] `load_users_to_db.py` 스크립트 작성
+- [ ] 3개 유저 데이터 생성 및 삽입
+
+#### 요구사항 ②: 구매이력 테이블 & 더미데이터
+- [x] Purchase History 테이블 스키마 추가 완료
+- [x] `models.py`에 PurchaseHistory 모델 추가 완료
+- [ ] `load_purchase_history_to_db.py` 스크립트 작성
+- [ ] 더미데이터 생성 로직 구현 (최근 6개월, 유저당 50~200건)
+
+#### 요구사항 ③: 추천 UX & 알고리즘
+- [ ] 백엔드 API 라우터 구현 (users, products, purchase_history)
+- [ ] 구매 요약 API 구현
+- [ ] 추천 알고리즘 구현 (구매이력 기반 점수 계산)
+- [ ] 프론트엔드 구매 요약 배너 컴포넌트
+- [ ] 프론트엔드 "핫한 요리" 탭 추가
+- [ ] 추천 정렬 로직 개선
+
+### 기타 기능
+- [ ] FastAPI 백엔드 구축 (기본 구조 완료)
 - [ ] 프로필 입력 페이지
 - [ ] OpenAI GPT-4 챗봇 연동
 - [ ] 감정 분석 로직
 - [ ] WebSocket 실시간 채팅
 - [ ] 장바구니 기능
+
+### 최근 업데이트 (2026-01-05)
+- ✅ **스키마 통일 완료**: `schema.sql` 기준으로 `models.py` 재작성
+- ✅ **Purchase History 테이블 추가**: 스키마 및 모델 완료
+- ✨ 구매이력 기반 개인화 추천 시스템 설계
+- ✨ 가상 유저 계정 3개 프로필 정의 (20대 자취생, 30대 기혼, 40대 가족)
+- 📝 개발 스펙 문서 작성 (`DEVELOPMENT_SPEC.md`)
+- 📝 개발 이슈 문서 작성 (`DEVELOPMENT_ISSUES.md`)
+
+## 📚 문서
+
+- **[개발 스펙 문서](./DEVELOPMENT_SPEC.md)**: 구매이력 기반 추천 시스템 상세 스펙
+- **[데이터베이스 설정 가이드](./DATABASE_SETUP_GUIDE.md)**: PostgreSQL 설정 및 더미데이터 생성 가이드 ⭐
+- **[설정 가이드](./SETUP.md)**: 개발 환경 설정 가이드
+- **[빠른 시작](./QUICKSTART.md)**: 프로젝트 빠른 시작 가이드
 
 ## 🔗 참고 자료
 
@@ -260,5 +343,5 @@ MIT
 
 ---
 
-**Last Updated**: 2026-01-02  
-**Version**: 0.1.0 (Prototype)
+**Last Updated**: 2026-01-05  
+**Version**: 0.2.0 (Prototype - 구매이력 기반 추천 개발 중)
