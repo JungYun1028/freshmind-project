@@ -18,6 +18,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [sortBy, setSortBy] = useState("popular");
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [recommendedProductIds, setRecommendedProductIds] = useState<number[]>([]);
 
   // 프로필이 설정되면 자동으로 개인화 추천순으로 변경
   useEffect(() => {
@@ -25,6 +26,18 @@ export default function Home() {
       setSortBy("personalized");
     }
   }, [isProfileSet]);
+
+  // 챗봇에서 추천 상품 보기
+  const handleShowRecommendedProducts = (productIds: number[]) => {
+    setRecommendedProductIds(productIds);
+    setSelectedCategory("전체");
+    setSearchQuery("");
+  };
+
+  // 전체 상품 보기
+  const handleShowAllProducts = () => {
+    setRecommendedProductIds([]);
+  };
 
   // 카테고리 목록 추출
   const categories = useMemo(() => {
@@ -115,19 +128,24 @@ export default function Home() {
   const filteredProducts = useMemo(() => {
     let filtered = products;
 
-    // 카테고리 필터
-    if (selectedCategory !== "전체") {
-      filtered = filtered.filter(p => p.category === selectedCategory);
-    }
+    // 챗봇 추천 상품 필터 (최우선)
+    if (recommendedProductIds.length > 0) {
+      filtered = filtered.filter(p => recommendedProductIds.includes(p.id));
+    } else {
+      // 카테고리 필터
+      if (selectedCategory !== "전체") {
+        filtered = filtered.filter(p => p.category === selectedCategory);
+      }
 
-    // 검색 필터
-    if (searchQuery.trim() !== "") {
-      filtered = filtered.filter((product) =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.usedIn.some(use => use.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        product.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
+      // 검색 필터
+      if (searchQuery.trim() !== "") {
+        filtered = filtered.filter((product) =>
+          product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          product.usedIn.some(use => use.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          product.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+      }
     }
 
     // 정렬
@@ -179,10 +197,11 @@ export default function Home() {
     }
 
     return sorted;
-  }, [searchQuery, selectedCategory, sortBy, isProfileSet, profile]);
+  }, [searchQuery, selectedCategory, sortBy, isProfileSet, profile, recommendedProductIds]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
+    setRecommendedProductIds([]); // 검색 시 추천 필터 해제
   };
 
   return (
@@ -192,17 +211,35 @@ export default function Home() {
       <CategoryFilter 
         categories={categories}
         selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
+        onSelectCategory={(category) => {
+          setSelectedCategory(category);
+          setRecommendedProductIds([]); // 카테고리 변경 시 추천 필터 해제
+        }}
       />
       
-      <div className="bg-gray-50 py-3 px-4 mb-2">
-        <p className="text-sm text-gray-600">
-          {isProfileSet 
-            ? `${profile?.name}님을 위한 맞춤 상품을 추천합니다 ✨`
-            : '프로필을 설정하면 맞춤 상품을 추천받을 수 있어요!'
-          }
-        </p>
-      </div>
+      {/* 챗봇 추천 상품 표시 중일 때 */}
+      {recommendedProductIds.length > 0 ? (
+        <div className="bg-purple-50 py-3 px-4 mb-2 flex items-center justify-between">
+          <p className="text-sm text-purple-700 font-medium">
+            🤖 AI가 추천한 상품 {recommendedProductIds.length}개를 보고 계세요
+          </p>
+          <button
+            onClick={handleShowAllProducts}
+            className="text-xs bg-white text-purple-600 px-3 py-1 rounded-full hover:bg-purple-100 transition-colors"
+          >
+            전체 상품 보기
+          </button>
+        </div>
+      ) : (
+        <div className="bg-gray-50 py-3 px-4 mb-2">
+          <p className="text-sm text-gray-600">
+            {isProfileSet 
+              ? `${profile?.name}님을 위한 맞춤 상품을 추천합니다 ✨`
+              : '프로필을 설정하면 맞춤 상품을 추천받을 수 있어요!'
+            }
+          </p>
+        </div>
+      )}
 
       <SortFilter sortBy={sortBy} onSortChange={setSortBy} isProfileSet={isProfileSet} />
       
@@ -230,7 +267,7 @@ export default function Home() {
       />
       
       {/* AI 챗봇 부동 버튼 */}
-      <ChatBotButton />
+      <ChatBotButton onShowRecommendedProducts={handleShowRecommendedProducts} />
     </div>
   );
 }
