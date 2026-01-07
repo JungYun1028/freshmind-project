@@ -552,14 +552,93 @@ freshmind-project/
 - ✅ **트렌드 점수 계산 시스템**: 밀키트/간편식 우선순위, 인기도/평점 반영
 - ⚠️ **참고**: 현재 더미데이터 사용 중, 실제 구매이력 데이터 반영 예정
 
+## 🗄️ PostgreSQL 없이 작동하는 Mock 데이터 시스템
+
+팀원들이 PostgreSQL 설치 없이도 개발할 수 있도록 **Mock 데이터 시스템**을 구축했습니다!
+
+### 📦 **Mock 데이터 파일**
+
+```
+frontend/app/data/
+├── products.ts              ✅ 상품 100개
+├── mockUsers.ts            ✅ 유저 3명
+└── mockPurchaseHistory.ts  ✅ 구매이력 55건 (신규!)
+
+frontend/app/types/
+└── purchase.ts             ✅ 구매이력 타입 정의 (신규!)
+
+frontend/app/utils/
+└── purchaseRecommendation.ts  ✅ 구매이력 기반 추천 로직 (신규!)
+```
+
+### 💡 **사용 방법**
+
+#### **1. 구매이력 조회**
+
+```typescript
+import { 
+  getPurchaseHistoryByUserId,
+  getRecentPurchasedProductIds,
+  getFrequentlyPurchasedProductIds 
+} from '@/app/data/mockPurchaseHistory';
+
+// 유저 1의 전체 구매이력
+const userPurchases = getPurchaseHistoryByUserId(1);
+
+// 최근 구매한 상품 ID (최대 10개)
+const recentProductIds = getRecentPurchasedProductIds(1, 10);
+
+// 자주 구매하는 상품 ID (최대 5개)
+const frequentProductIds = getFrequentlyPurchasedProductIds(1, 5);
+```
+
+#### **2. 구매이력 기반 추천**
+
+```typescript
+import { getRecommendedProducts } from '@/app/utils/purchaseRecommendation';
+import { products } from '@/app/data/products';
+
+// 유저 1에게 추천할 상품 20개
+const recommendations = getRecommendedProducts(1, products, 20);
+
+recommendations.forEach(rec => {
+  console.log(`${rec.product.name}: ${rec.score}점`);
+  console.log(`추천 이유: ${rec.reasons.join(', ')}`);
+});
+```
+
+#### **3. 핫한 요리 탭**
+
+```typescript
+import { getTrendingUnpurchasedProducts } from '@/app/utils/purchaseRecommendation';
+
+// 구매하지 않은 트렌드 상품 20개
+const trendingProducts = getTrendingUnpurchasedProducts(1, products, 20);
+```
+
+### ✨ **추천 점수 계산 방식**
+
+- ✅ **최근 구매 카테고리**: +30점
+- ✅ **자주 구매하는 카테고리**: +40점
+- ✅ **같은 요리 용도**: +25점
+- ✅ **베스트셀러**: +15점
+- ✅ **높은 평점**: +10점
+- ❌ **이미 구매한 상품**: -100점 (제외)
+
+### 🎯 **장점**
+
+- **PostgreSQL 불필요** - 프론트엔드만으로 작동
+- **빠른 개발** - DB 설정 없이 바로 테스트
+- **실제 데이터 반영** - 로컬 DB의 실제 구매이력을 JSON으로 export
+- **타입 안정성** - TypeScript로 완벽한 타입 지원
+
+---
+
 ## 📚 문서
 
-- **[개발 스펙 문서](./DEVELOPMENT_SPEC.md)**: 구매이력 기반 추천 시스템 상세 스펙
 - **[데이터베이스 설정 가이드](./DATABASE_SETUP_GUIDE.md)**: PostgreSQL 설정 및 더미데이터 생성 가이드 ⭐
 - **[추천 로직 설계 문서](./RECOMMENDATION_LOGIC_DESIGN.md)**: 구매 요약 배너 및 추천 알고리즘 상세 설계
 - **[구현 완료 요약](./IMPLEMENTATION_SUMMARY.md)**: 구매 요약 배너 구현 완료 요약
-- **[설정 가이드](./SETUP.md)**: 개발 환경 설정 가이드
-- **[빠른 시작](./QUICKSTART.md)**: 프로젝트 빠른 시작 가이드
 
 ## 🔗 참고 자료
 
@@ -578,5 +657,5 @@ MIT
 
 ---
 
-**Last Updated**: 2026-01-06  
-**Version**: 0.3.0 (Prototype - 구매 요약 배너 구현 완료)
+**Last Updated**: 2026-01-07  
+**Version**: 0.4.0 (Prototype - PostgreSQL 없이 작동하는 Mock 데이터 시스템 구축)
