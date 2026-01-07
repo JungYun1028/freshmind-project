@@ -334,7 +334,12 @@ export default function Home() {
       />
       
       {/* AI 챗봇 부동 버튼 */}
-      <ChatBotButton />
+      <ChatBotButton 
+        onShowRecommendedProducts={(productIds) => {
+          // 추천 상품 표시 로직 (향후 구현)
+          console.log('추천 상품 ID:', productIds);
+        }}
+      />
     </div>
   );
 }
