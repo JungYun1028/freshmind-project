@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import chatbot
+from app.routers import chatbot, users
 
 app = FastAPI(
     title="FreshMind API",
@@ -19,6 +19,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(chatbot.router, prefix="/api/chatbot", tags=["chatbot"])
+app.include_router(users.router, prefix="/api/users", tags=["users"])
 
 @app.get("/")
 async def root():

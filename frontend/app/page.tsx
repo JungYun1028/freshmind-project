@@ -6,18 +6,19 @@ import SearchBar from "./components/SearchBar";
 import ProductCard from "./components/ProductCard";
 import CategoryFilter from "./components/CategoryFilter";
 import SortFilter from "./components/SortFilter";
-import ProfileModal from "./components/ProfileModal";
 import ChatBotButton from "./components/ChatBotButton";
+import PurchaseSummaryBanner from "./components/PurchaseSummaryBanner";
+import UserSwitchBottomSheet from "./components/UserSwitchBottomSheet";
 import { products } from "./data/products";
 import type { Product } from "./types/product";
 import { useProfile } from "./contexts/ProfileContext";
 
 export default function Home() {
-  const { profile, isProfileSet } = useProfile();
+  const { profile, isProfileSet, setProfile } = useProfile();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [sortBy, setSortBy] = useState("popular");
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isUserSwitchOpen, setIsUserSwitchOpen] = useState(false);
 
   // 프로필이 설정되면 자동으로 개인화 추천순으로 변경
   useEffect(() => {
@@ -71,6 +72,79 @@ export default function Home() {
     return score;
   };
 
+  // 최근 1~2개월 내 구매한 상품 ID 목록 조회 (더미데이터)
+  const getRecentPurchasedProductIds = (profile: any): number[] => {
+    if (!profile) return [];
+    
+    // 유저별 최근 1~2개월 내 구매한 상품 ID (더미데이터)
+    // 실제로는 API에서 최근 1~2개월 구매 이력 조회
+    // 3개월 전에 구매한 상품은 포함하지 않음 (핫한 요리에 표시 가능)
+    const recentPurchaseHistory: Record<string, number[]> = {
+      '김지은': [65, 64], // 최근 1~2개월: 삼각김밥, 냉동만두 (즉석카레, 냉동볶음밥은 3개월 전 구매)
+      '박민수': [66, 68], // 최근 1~2개월: 제육볶음, 짬뽕 (순두부찌개, 스테이크는 3개월 전 구매)
+      '이영희': [72, 88]  // 최근 1~2개월: 순두부찌개, 그릭요거트 (치즈, 김치찌개는 3개월 전 구매)
+    };
+    
+    return recentPurchaseHistory[profile.name] || [];
+  };
+
+  // 트렌드 점수 계산 (핫한 요리용)
+  const calculateTrendScore = (product: Product): number => {
+    let score = 0;
+    
+    // 1. 카테고리 우선순위 (밀키트/간편식 우선)
+    if (product.category === '간편식/밀키트') {
+      score += 100; // 최고 우선순위
+      
+      // subCategory별 추가 점수
+      if (product.subCategory === '밀키트') {
+        score += 30; // 밀키트가 가장 핫함
+      } else if (product.subCategory === '즉석식품') {
+        score += 20; // 즉석식품도 인기
+      } else if (product.subCategory === '냉동식품') {
+        score += 15; // 냉동식품도 좋음
+      }
+    } else if (product.category === '냉동식품') {
+      score += 50; // 냉동식품도 간편식으로 분류
+    } else if (['해산물', '육류/계란'].includes(product.category)) {
+      score += 30; // 요리 재료도 인기
+    } else {
+      score += 10; // 기타 상품
+    }
+    
+    // 2. 인기도 점수 (리뷰 수 × 평점)
+    const popularityScore = (product.reviews * product.rating) / 1000;
+    score += popularityScore;
+    
+    // 3. 최근 인기 상품 보너스 (리뷰가 많은 상품)
+    if (product.reviews > 5000) {
+      score += 20; // 리뷰 5000개 이상
+    } else if (product.reviews > 3000) {
+      score += 10; // 리뷰 3000개 이상
+    }
+    
+    // 4. 평점 보너스
+    if (product.rating >= 4.7) {
+      score += 15; // 평점 4.7 이상
+    } else if (product.rating >= 4.5) {
+      score += 10; // 평점 4.5 이상
+    }
+    
+    // 5. 상품명에 "밀키트", "간편식", "레토르트" 포함 시 보너스
+    const nameLower = product.name.toLowerCase();
+    if (nameLower.includes('밀키트') || nameLower.includes('meal kit')) {
+      score += 25;
+    }
+    if (nameLower.includes('간편식') || nameLower.includes('즉석')) {
+      score += 20;
+    }
+    if (nameLower.includes('레토르트') || nameLower.includes('retort')) {
+      score += 25;
+    }
+    
+    return score;
+  };
+
   // 연령대와 성별에 따른 카테고리 보너스
   const getCategoryBonus = (ageGroup: string, gender: string, category: string): number => {
     // 20대 남성
@@ -116,7 +190,28 @@ export default function Home() {
     let filtered = products;
 
     // 카테고리 필터
-    if (selectedCategory !== "전체") {
+    if (selectedCategory === "핫한 요리") {
+      // 핫한 요리: 트렌드 상품 표시
+      // 1. 최근 1~2개월 내 구매한 상품만 제외
+      //    (3개월 전에 구매한 상품은 포함 가능 - 다시 추천해도 됨)
+      const recentPurchasedProductIds = getRecentPurchasedProductIds(profile);
+      
+      // 2. 최근 1~2개월 내 구매한 상품만 필터링 제외
+      //    나머지 상품(미구매 + 3개월 전 구매)은 모두 표시 가능
+      filtered = filtered.filter(p => !recentPurchasedProductIds.includes(p.id));
+      
+      // 3. 트렌드 점수 계산 (밀키트/간편식 우선순위 + 인기도)
+      filtered = filtered.map(p => {
+        const trendScore = calculateTrendScore(p);
+        return { ...p, _trendScore: trendScore };
+      });
+      
+      // 4. 트렌드 점수 기준으로 정렬
+      filtered.sort((a: any, b: any) => (b._trendScore || 0) - (a._trendScore || 0));
+      
+      // 5. 상위 30개만 표시
+      filtered = filtered.slice(0, 30);
+    } else if (selectedCategory !== "전체") {
       filtered = filtered.filter(p => p.category === selectedCategory);
     }
 
@@ -185,24 +280,30 @@ export default function Home() {
     setSearchQuery(query);
   };
 
+  const handleUserSelect = (selectedProfile: { name: string; birthDate: string; gender: 'M' | 'F' | 'U'; ageGroup: '10s' | '20s' | '30s' | '40s' | '50s+' }) => {
+    setProfile(selectedProfile);
+  };
+
+  // user_id 계산 (더미데이터용)
+  const getUserId = () => {
+    if (!profile) return undefined;
+    return profile.name === '김지은' ? 1 : profile.name === '박민수' ? 2 : 3;
+  };
+
   return (
     <div className="min-h-screen bg-white">
-      <Header onProfileClick={() => setIsProfileModalOpen(true)} />
+      <Header onProfileClick={() => setIsUserSwitchOpen(true)} />
       <SearchBar onSearch={handleSearch} />
+      
+      {/* 구매 요약 배너 (검색창 하단, 카테고리 필터 위) */}
+      <PurchaseSummaryBanner userId={getUserId()} />
+      
       <CategoryFilter 
         categories={categories}
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
+        showHotDishes={true}
       />
-      
-      <div className="bg-gray-50 py-3 px-4 mb-2">
-        <p className="text-sm text-gray-600">
-          {isProfileSet 
-            ? `${profile?.name}님을 위한 맞춤 상품을 추천합니다 ✨`
-            : '프로필을 설정하면 맞춤 상품을 추천받을 수 있어요!'
-          }
-        </p>
-      </div>
 
       <SortFilter sortBy={sortBy} onSortChange={setSortBy} isProfileSet={isProfileSet} />
       
@@ -224,9 +325,12 @@ export default function Home() {
         )}
       </div>
 
-      <ProfileModal 
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
+      {/* 계정 전환 바텀시트 */}
+      <UserSwitchBottomSheet
+        isOpen={isUserSwitchOpen}
+        onClose={() => setIsUserSwitchOpen(false)}
+        currentProfile={profile}
+        onSelectUser={handleUserSelect}
       />
       
       {/* AI 챗봇 부동 버튼 */}

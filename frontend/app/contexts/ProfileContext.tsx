@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile, loadProfile, saveProfile as saveProfileToStorage, clearProfile as clearProfileFromStorage } from '../types/profile';
+import { mockUsers } from '../data/mockUsers';
 
 interface ProfileContextType {
   profile: UserProfile | null;
@@ -12,6 +13,9 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
+// 기본 유저 (1번: 김지은)
+const DEFAULT_USER = mockUsers[0];
+
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfileState] = useState<UserProfile | null>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -20,7 +24,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setIsMounted(true);
     const savedProfile = loadProfile();
-    setProfileState(savedProfile);
+    // 저장된 프로필이 없으면 기본 유저(1번)로 설정
+    if (savedProfile) {
+      setProfileState(savedProfile);
+    } else {
+      setProfileState(DEFAULT_USER);
+      saveProfileToStorage(DEFAULT_USER);
+    }
   }, []);
 
   const setProfile = (newProfile: UserProfile) => {
