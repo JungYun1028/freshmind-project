@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import ChatBotModal from './ChatBotModal';
 
-export default function ChatBotButton() {
+interface ChatBotButtonProps {
+  onShowRecommendedProducts: (productIds: number[]) => void;
+}
+
+export default function ChatBotButton({ onShowRecommendedProducts }: ChatBotButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -39,7 +43,11 @@ export default function ChatBotButton() {
       </button>
 
       {/* 챗봇 모달 */}
-      <ChatBotModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
+      <ChatBotModal 
+        isOpen={isOpen} 
+        onClose={() => setIsOpen(false)} 
+        onShowRecommendedProducts={onShowRecommendedProducts}
+      />
     </>
   );
 }

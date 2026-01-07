@@ -27,9 +27,10 @@ interface RecommendedProduct {
 interface ChatBotModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onShowRecommendedProducts: (productIds: number[]) => void;
 }
 
-export default function ChatBotModal({ isOpen, onClose }: ChatBotModalProps) {
+export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProducts }: ChatBotModalProps) {
   const { profile } = useProfile();
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -152,31 +153,49 @@ export default function ChatBotModal({ isOpen, onClose }: ChatBotModalProps) {
                 
                 {/* 추천 상품 카드들 */}
                 {message.recommendations && message.recommendations.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    {message.recommendations.map((product) => (
-                      <div key={product.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                        <div className="flex gap-3">
-                          <img 
-                            src={product.image} 
-                            alt={product.name}
-                            className="w-16 h-16 object-cover rounded-lg"
-                          />
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm text-gray-900">{product.name}</h4>
-                            <p className="text-xs text-gray-600 mt-1">{product.reason}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className="text-sm font-bold text-purple-600">
-                                {product.price.toLocaleString()}원
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                ⭐ {product.rating} ({product.reviews.toLocaleString()})
-                              </span>
+                  <>
+                    <div className="mt-4 space-y-3">
+                      {message.recommendations.map((product) => (
+                        <div key={product.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <div className="flex gap-3">
+                            <img 
+                              src={product.image} 
+                              alt={product.name}
+                              className="w-16 h-16 object-cover rounded-lg"
+                            />
+                            <div className="flex-1">
+                              <h4 className="font-medium text-sm text-gray-900">{product.name}</h4>
+                              <p className="text-xs text-gray-600 mt-1">{product.reason}</p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-sm font-bold text-purple-600">
+                                  {product.price.toLocaleString()}원
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  ⭐ {product.rating} ({product.reviews.toLocaleString()})
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                    
+                    {/* 추천 상품 모두 보기 버튼 */}
+                    <button
+                      onClick={() => {
+                        const productIds = message.recommendations?.map(p => p.id) || [];
+                        onShowRecommendedProducts(productIds);
+                        onClose();
+                      }}
+                      className="mt-3 w-full py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      추천 상품 자세히 보기
+                    </button>
+                  </>
                 )}
                 
                 <p className="text-xs opacity-60 mt-2">
