@@ -3,6 +3,8 @@ import json
 from openai import OpenAI
 from typing import List, Dict, Any
 from pydantic import BaseModel
+from datetime import datetime, timedelta
+from collections import Counter
 
 # OpenAI 클라이언트 초기화
 def get_openai_client():
@@ -56,6 +58,179 @@ class ProductRecommendation(BaseModel):
     name: str
     reason: str  # 추천 이유
     relevance_score: float  # 관련도 점수
+
+
+def analyze_purchase_history(purchase_history: List[Dict[str, Any]], all_products: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    구매이력을 분석하여 사용자의 구매 패턴을 파악합니다.
+    
+    Returns:
+        {
+            'purchased_product_ids': [1, 2, 3, ...],  # 구매한 상품 ID
+            'purchase_counts': {1: 3, 2: 2, ...},      # 상품별 구매 횟수
+            'recent_categories': ['간편식', '밀키트'],  # 최근 구매 카테고리
+            'top_categories': ['간편식', '밀키트'],     # 자주 구매하는 카테고리
+            'recent_purchase_date': '2025-12-29',     # 가장 최근 구매일
+        }
+    """
+    if not purchase_history:
+        return {
+            'purchased_product_ids': [],
+            'purchase_counts': {},
+            'recent_categories': [],
+            'top_categories': [],
+            'recent_purchase_date': None
+        }
+    
+    # 상품 ID별 구매 횟수
+    purchase_counts = Counter([p['productId'] for p in purchase_history])
+    purchased_product_ids = list(purchase_counts.keys())
+    
+    # 최근 구매 날짜 (가장 최근)
+    sorted_history = sorted(purchase_history, key=lambda x: x['purchasedAt'], reverse=True)
+    recent_purchase_date = sorted_history[0]['purchasedAt'][:10] if sorted_history else None
+    
+    # 최근 1개월 구매 상품 (카테고리 파악용)
+    one_month_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    recent_purchases = [p for p in sorted_history if p['purchasedAt'][:10] >= one_month_ago]
+    
+    # 최근 구매 카테고리
+    recent_product_ids = [p['productId'] for p in recent_purchases]
+    recent_categories = []
+    for prod_id in recent_product_ids:
+        product = next((p for p in all_products if p['id'] == prod_id), None)
+        if product:
+            recent_categories.append(product['category'])
+    recent_categories = list(set(recent_categories))  # 중복 제거
+    
+    # 전체 구매에서 자주 구매하는 카테고리 (TOP 3)
+    all_categories = []
+    for prod_id in purchased_product_ids:
+        product = next((p for p in all_products if p['id'] == prod_id), None)
+        if product:
+            all_categories.append(product['category'])
+    
+    category_counts = Counter(all_categories)
+    top_categories = [cat for cat, _ in category_counts.most_common(3)]
+    
+    return {
+        'purchased_product_ids': purchased_product_ids,
+        'purchase_counts': dict(purchase_counts),
+        'recent_categories': recent_categories,
+        'top_categories': top_categories,
+        'recent_purchase_date': recent_purchase_date
+    }
+
+
+def calculate_purchase_history_score(product: Dict[str, Any], purchase_analysis: Dict[str, Any]) -> float:
+    """
+    구매이력 기반 점수 계산
+    
+    ① 반복 구매 상품: 60 + (구매횟수 × 5)
+    ② 최근 구매 카테고리: 40 + (최근 1개월 내면 +20)
+    ③ 최근 구매 카테고리의 미구매 상품: 30 + (최근 1개월 +15, 2개월 +10)
+    ④ 미구매 상품 중 선호 카테고리: 20
+    """
+    product_id = product['id']
+    category = product['category']
+    
+    purchased_ids = purchase_analysis['purchased_product_ids']
+    purchase_counts = purchase_analysis['purchase_counts']
+    recent_categories = purchase_analysis['recent_categories']
+    top_categories = purchase_analysis['top_categories']
+    
+    # ① 반복 구매 상품 (최고 우선순위)
+    if product_id in purchased_ids:
+        count = purchase_counts.get(product_id, 0)
+        return 60 + (count * 5)
+    
+    # ② 최근 구매 카테고리
+    if category in recent_categories:
+        return 40 + 20  # 최근 1개월 내 구매한 카테고리
+    
+    # ③ 최근 구매 카테고리의 미구매 상품
+    if category in recent_categories:
+        return 30 + 15  # 최근 1개월
+    
+    # ④ 미구매 상품 중 선호 카테고리
+    if category in top_categories:
+        return 20
+    
+    return 0
+
+
+def calculate_profile_score(product: Dict[str, Any], user_profile: Dict[str, Any]) -> float:
+    """
+    프로필 기반 점수 계산
+    
+    - 연령대 매칭: 30점
+    - 성별 매칭: 20점
+    - 카테고리 보너스: 15점 (50% 반영 = 7.5점)
+    """
+    score = 0
+    
+    age_group = user_profile.get('ageGroup', '')
+    gender = user_profile.get('gender', '')
+    
+    # 연령대 매칭 (30점)
+    target_ages = product.get('targetAge', [])
+    if age_group in target_ages:
+        score += 30
+    
+    # 성별 매칭 (20점)
+    target_gender = product.get('targetGender', 'all')
+    if target_gender == 'all':
+        score += 20
+    elif gender == 'M' and target_gender in ['male', 'male-oriented']:
+        score += 20
+    elif gender == 'F' and target_gender in ['female', 'female-oriented']:
+        score += 20
+    
+    # 카테고리 보너스 (15점의 50% = 7.5점)
+    # 간단하게 주요 카테고리에 보너스
+    category = product.get('category', '')
+    if category in ['간편식/밀키트', '과일', '채소']:
+        score += 7.5
+    
+    return score
+
+
+def calculate_popularity_score(product: Dict[str, Any]) -> float:
+    """
+    인기도 점수 계산 (최대 10점)
+    
+    - 리뷰 수 기반: min((reviews / 2000) × 10, 10)
+    """
+    reviews = product.get('reviews', 0)
+    return min((reviews / 2000) * 10, 10)
+
+
+def calculate_personalized_score(
+    product: Dict[str, Any],
+    purchase_analysis: Dict[str, Any],
+    user_profile: Dict[str, Any]
+) -> float:
+    """
+    통합 추천 점수 계산
+    
+    최종 점수 = 구매이력 점수(50%) + 프로필 점수(30%) + 인기도 점수(10%)
+    """
+    # 1. 구매이력 점수 (50%)
+    purchase_score = calculate_purchase_history_score(product, purchase_analysis)
+    weighted_purchase = purchase_score * 0.5
+    
+    # 2. 프로필 점수 (30%)
+    profile_score = calculate_profile_score(product, user_profile)
+    weighted_profile = profile_score * 0.3
+    
+    # 3. 인기도 점수 (10%)
+    popularity_score = calculate_popularity_score(product)
+    weighted_popularity = popularity_score * 0.1
+    
+    # 최종 점수
+    total_score = weighted_purchase + weighted_profile + weighted_popularity
+    
+    return total_score
 
 
 async def analyze_intent(message: str) -> IntentAnalysis:
@@ -195,23 +370,45 @@ async def recommend_products(
     message: str,
     sentiment_result: SentimentResult,
     user_profile: Dict[str, Any],
-    all_products: List[Dict[str, Any]]
+    all_products: List[Dict[str, Any]],
+    purchase_history: List[Dict[str, Any]] = []
 ) -> List[ProductRecommendation]:
     """
-    사용자 메시지, 감정 분석 결과, 프로필 기반으로 상품을 추천합니다.
+    사용자 메시지, 감정 분석 결과, 프로필, 구매이력 기반으로 상품을 추천합니다.
     
     Args:
         message: 사용자 메시지
         sentiment_result: 감정 분석 결과
         user_profile: 사용자 프로필 (gender, ageGroup 등)
         all_products: 전체 상품 목록
+        purchase_history: 구매이력 (신규)
         
     Returns:
         List[ProductRecommendation]: 추천 상품 목록 (3-5개)
     """
     client = get_openai_client()
     
-    # 상품 목록을 간략화 (ID, 이름, 카테고리, 설명만)
+    # 구매이력 분석
+    purchase_analysis = analyze_purchase_history(purchase_history, all_products)
+    print(f"📊 구매이력 분석: 구매 상품 {len(purchase_analysis['purchased_product_ids'])}개, "
+          f"최근 카테고리 {purchase_analysis['recent_categories']}")
+    
+    # 1단계: 모든 상품에 대해 통합 점수 계산
+    scored_products = []
+    for product in all_products:
+        score = calculate_personalized_score(product, purchase_analysis, user_profile)
+        scored_products.append({
+            'product': product,
+            'score': score
+        })
+    
+    # 2단계: 점수 순으로 정렬하여 상위 30개만 GPT에게 전달 (토큰 절약)
+    scored_products.sort(key=lambda x: x['score'], reverse=True)
+    top_products = [sp['product'] for sp in scored_products[:30]]
+    
+    print(f"🎯 상위 30개 상품 선정 완료 (최고 점수: {scored_products[0]['score']:.2f})")
+    
+    # 상품 목록을 간략화 (GPT에게 전달용)
     simplified_products = [
         {
             "id": p['id'],
@@ -223,8 +420,19 @@ async def recommend_products(
             "usedIn": p.get('usedIn', []),
             "tags": p.get('tags', [])
         }
-        for p in all_products[:50]  # GPT 토큰 제한 고려하여 50개만
+        for p in top_products
     ]
+    
+    # 구매이력 정보 요약
+    purchase_summary = ""
+    if purchase_analysis['purchased_product_ids']:
+        purchased_names = []
+        for prod_id in purchase_analysis['purchased_product_ids'][:5]:  # 최대 5개만
+            product = next((p for p in all_products if p['id'] == prod_id), None)
+            if product:
+                count = purchase_analysis['purchase_counts'].get(prod_id, 1)
+                purchased_names.append(f"{product['name']} ({count}회)")
+        purchase_summary = f"\n- 최근 구매 상품: {', '.join(purchased_names)}\n- 선호 카테고리: {', '.join(purchase_analysis['top_categories'])}"
     
     prompt = f"""
 사용자 정보:
@@ -232,29 +440,31 @@ async def recommend_products(
 - 연령대: {user_profile.get('ageGroup', 'unknown')}
 - 메시지: "{message}"
 - 감정: {sentiment_result.sentiment} (점수: {sentiment_result.score})
-- 키워드: {', '.join(sentiment_result.keywords)}
+- 키워드: {', '.join(sentiment_result.keywords)}{purchase_summary}
 
-상품 목록:
+추천 후보 상품 (구매이력 & 프로필 기반 상위 30개):
 {json.dumps(simplified_products, ensure_ascii=False, indent=2)}
 
-위 정보를 바탕으로 사용자에게 가장 적합한 상품 3-5개를 추천하고, 각 상품마다 추천 이유를 설명해주세요.
+위 정보를 바탕으로 사용자에게 가장 적합한 상품을 **3~5개** 추천하고, 각 상품마다 추천 이유를 설명해주세요.
 
 응답은 반드시 다음 JSON 형식으로만 작성해주세요:
 {{
     "recommendations": [
         {{
             "product_id": 상품ID(숫자),
-            "reason": "추천 이유 (한 문장)",
+            "reason": "추천 이유 (한 문장, 구매이력 고려)",
             "relevance_score": 관련도 점수 (0.0~1.0)
         }}
     ]
 }}
 
-추천 기준:
-1. 사용자의 연령대와 성별에 맞는 상품
+추천 기준 (우선순위):
+1. 사용자의 구매이력 (반복 구매 상품, 선호 카테고리)
 2. 메시지 키워드와 관련된 상품
-3. 감정 상태에 맞는 상품 (예: positive → 프리미엄/건강식품)
-4. 상품의 targetAge, targetGender, usedIn, tags 고려
+3. 감정 상태에 맞는 상품
+4. 연령대와 성별 매칭
+
+중요: 추천 개수는 최소 3개, 최대 5개로 제한하세요.
 """
     
     try:
@@ -284,20 +494,36 @@ async def recommend_products(
                     relevance_score=rec.get('relevance_score', 0.8)
                 ))
         
+        # 최소 3개, 최대 5개 제한
+        if len(recommendations) < 3:
+            print(f"⚠️  추천 상품이 {len(recommendations)}개뿐입니다. 상위 상품으로 보완합니다.")
+            # 상위 점수 상품으로 보완
+            for sp in scored_products[:5]:
+                if len(recommendations) >= 3:
+                    break
+                product = sp['product']
+                if product['id'] not in [r.product_id for r in recommendations]:
+                    recommendations.append(ProductRecommendation(
+                        product_id=product['id'],
+                        name=product['name'],
+                        reason="구매이력 기반 추천 상품입니다",
+                        relevance_score=0.7
+                    ))
+        
         return recommendations[:5]  # 최대 5개
         
     except Exception as e:
-        print(f"상품 추천 오류: {str(e)}")
-        # 기본 추천 (인기 상품 3개)
-        popular_products = sorted(all_products, key=lambda x: x.get('reviews', 0), reverse=True)[:3]
+        print(f"❌ 상품 추천 오류: {str(e)}")
+        # 기본 추천: 구매이력 기반 상위 3개
+        print("📦 구매이력 기반 기본 추천으로 대체합니다")
         return [
             ProductRecommendation(
-                product_id=p['id'],
-                name=p['name'],
-                reason="인기 많은 상품입니다",
-                relevance_score=0.6
+                product_id=sp['product']['id'],
+                name=sp['product']['name'],
+                reason="구매이력 기반 추천 상품입니다",
+                relevance_score=0.7
             )
-            for p in popular_products
+            for sp in scored_products[:3]
         ]
 
 

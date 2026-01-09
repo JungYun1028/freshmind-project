@@ -16,6 +16,7 @@ class ChatRequest(BaseModel):
     message: str
     user_profile: Optional[Dict[str, Any]] = None
     products: List[Dict[str, Any]]  # 프론트엔드에서 전달받은 상품 목록
+    purchase_history: Optional[List[Dict[str, Any]]] = []  # 구매이력 데이터 (신규)
 
 
 class ChatResponse(BaseModel):
@@ -57,7 +58,8 @@ async def chat(request: ChatRequest):
                 message=request.message,
                 sentiment_result=sentiment_result,
                 user_profile=user_profile,
-                all_products=request.products
+                all_products=request.products,
+                purchase_history=request.purchase_history or []  # 구매이력 전달
             )
             
             # 추천 상품 상세 정보 구성
