@@ -49,7 +49,7 @@ def get_gemini_client():
     if not api_key:
         raise ValueError("Google AI API key not found in secret.json")
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-1.5-flash')
+    return genai.GenerativeModel('gemini-2.0-flash')
 
 
 # ============ 데이터 모델 ============
