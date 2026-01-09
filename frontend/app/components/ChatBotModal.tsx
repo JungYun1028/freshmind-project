@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useProfile } from '../contexts/ProfileContext';
 import { products } from '../data/products';
+import { mockPurchaseHistory, getPurchaseHistoryByUserId } from '../data/mockPurchaseHistory';
+import { getUserIdByProfile } from '../data/mockUsers';
 
 interface Message {
   id: string;
@@ -64,6 +66,15 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
     setIsLoading(true);
 
     try {
+      // 구매이력 데이터 준비
+      let purchaseHistory = [];
+      if (profile) {
+        const userId = getUserIdByProfile(profile);
+        if (userId) {
+          purchaseHistory = getPurchaseHistoryByUserId(userId);
+        }
+      }
+
       // Backend API 호출
       const response = await fetch('http://localhost:8001/api/chatbot/chat', {
         method: 'POST',
@@ -75,8 +86,10 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
           user_profile: profile ? {
             gender: profile.gender,
             ageGroup: profile.ageGroup,
+            name: profile.name,
           } : null,
           products: products,
+          purchase_history: purchaseHistory,  // 구매이력 추가
         }),
       });
 
