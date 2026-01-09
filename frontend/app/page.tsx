@@ -12,6 +12,8 @@ import UserSwitchBottomSheet from "./components/UserSwitchBottomSheet";
 import { products } from "./data/products";
 import type { Product } from "./types/product";
 import { useProfile } from "./contexts/ProfileContext";
+import { mockPurchaseHistory, getPurchaseHistoryByUserId, getRecentPurchaseHistory } from "./data/mockPurchaseHistory";
+import { getUserIdByProfile } from "./data/mockUsers";
 
 export default function Home() {
   const { profile, isProfileSet, setProfile } = useProfile();
@@ -33,59 +35,211 @@ export default function Home() {
     return Array.from(uniqueCategories);
   }, []);
 
+  // 구매이력 기반 점수 계산
+  const calculatePurchaseHistoryScore = (product: Product, purchaseHistory: ReturnType<typeof getPurchaseHistory>): number => {
+    if (!purchaseHistory || purchaseHistory.purchasedProducts.length === 0) {
+      return 0;
+    }
+
+    let score = 0;
+    const { purchasedProducts, topCategories, repeatPurchases } = purchaseHistory;
+
+    // 1. 반복 구매 상품 (최고 우선순위) - 가중치: 60점
+    if (repeatPurchases.includes(product.id)) {
+      const purchaseData = purchasedProducts.find(p => p.productId === product.id);
+      if (purchaseData) {
+        // 반복 구매 횟수에 따라 점수 증가
+        score += 60 + (purchaseData.purchaseCount * 5); // 3회 구매면 60 + 15 = 75점
+      }
+    }
+
+    // 2. 최근 구매한 상품과 같은 카테고리 - 가중치: 40점
+    if (topCategories.includes(product.category)) {
+      score += 40;
+      
+      // 최근 구매한 상품과 정확히 같은 카테고리면 추가 보너스
+      const recentSameCategory = purchasedProducts.filter(
+        p => p.category === product.category && p.lastPurchased <= 30
+      );
+      if (recentSameCategory.length > 0) {
+        score += 20; // 같은 카테고리 최근 구매 보너스
+      }
+    }
+
+    // 3. 최근 구매한 상품과 유사한 상품 (같은 카테고리) - 가중치: 30점
+    const sameCategoryPurchases = purchasedProducts.filter(p => p.category === product.category);
+    if (sameCategoryPurchases.length > 0 && !repeatPurchases.includes(product.id)) {
+      score += 30;
+      
+      // 최근 구매일수록 높은 점수
+      const mostRecent = Math.min(...sameCategoryPurchases.map(p => p.lastPurchased));
+      if (mostRecent <= 30) {
+        score += 15; // 최근 1개월 내 구매한 카테고리
+      } else if (mostRecent <= 60) {
+        score += 10; // 최근 2개월 내 구매한 카테고리
+      }
+    }
+
+    // 4. 미구매 상품 중 선호 카테고리 - 가중치: 20점
+    if (!purchasedProducts.some(p => p.productId === product.id) && topCategories.includes(product.category)) {
+      score += 20;
+    }
+
+    return score;
+  };
+
   // 프로필 기반 상품 점수 계산
   const calculatePersonalizedScore = (product: Product): number => {
     if (!isProfileSet || !profile) return 0;
     
     let score = 0;
     
-    // 1. 연령대 매칭 (가중치: 50점)
+    // 구매이력 데이터 조회
+    const purchaseHistory = getPurchaseHistory(profile);
+    
+    // 1. 구매이력 기반 점수 (최우선, 가중치: 50점)
+    const purchaseScore = calculatePurchaseHistoryScore(product, purchaseHistory);
+    score += purchaseScore * 0.5; // 구매이력 점수를 50% 반영
+    
+    // 2. 연령대 매칭 (가중치: 30점)
     if (product.targetAge.includes(profile.ageGroup)) {
-      score += 50;
+      score += 30;
     }
     
-    // 2. 성별 매칭 (가중치: 40점)
+    // 3. 성별 매칭 (가중치: 20점)
     if (product.targetGender === 'all') {
-      score += 10; // 모든 성별 대상은 낮은 점수
+      score += 5; // 모든 성별 대상은 낮은 점수
     } else if (profile.gender === 'M') {
       if (product.targetGender === 'male-oriented') {
-        score += 40;
+        score += 20;
       } else if (product.targetGender === 'male') {
-        score += 35;
+        score += 15;
       }
     } else if (profile.gender === 'F') {
       if (product.targetGender === 'female-oriented') {
-        score += 40;
+        score += 20;
       } else if (product.targetGender === 'female') {
-        score += 35;
+        score += 15;
       }
     }
     
-    // 3. 연령대와 성별 조합에 따른 카테고리 가중치 (가중치: 30점)
+    // 4. 연령대와 성별 조합에 따른 카테고리 가중치 (가중치: 15점)
     const categoryBonus = getCategoryBonus(profile.ageGroup, profile.gender, product.category);
-    score += categoryBonus;
+    score += categoryBonus * 0.5; // 프로필 점수는 50% 반영
     
-    // 4. 인기도 보너스 (가중치: 10점)
+    // 5. 인기도 보너스 (가중치: 10점)
     const reviewScore = Math.min((product.reviews / 2000) * 10, 10);
     score += reviewScore;
     
     return score;
   };
 
-  // 최근 1~2개월 내 구매한 상품 ID 목록 조회 (더미데이터)
+  // 구매이력 데이터 조회 (실제 데이터베이스 데이터 사용)
+  // mockPurchaseHistory.ts에서 실제 구매이력 데이터를 가져와서 처리
+  const getPurchaseHistory = (profile: any): {
+    purchasedProducts: Array<{ productId: number; category: string; purchaseCount: number; lastPurchased: number }>;
+    topCategories: string[];
+    repeatPurchases: number[];
+  } => {
+    if (!profile) {
+      return { purchasedProducts: [], topCategories: [], repeatPurchases: [] };
+    }
+
+    // 프로필에서 user_id 가져오기
+    const userId = getUserIdByProfile(profile);
+    if (!userId) {
+      return { purchasedProducts: [], topCategories: [], repeatPurchases: [] };
+    }
+
+    // 실제 구매이력 데이터 조회 (최근 6개월)
+    const userPurchaseHistory = getPurchaseHistoryByUserId(userId);
+    
+    if (userPurchaseHistory.length === 0) {
+      return { purchasedProducts: [], topCategories: [], repeatPurchases: [] };
+    }
+
+    // 상품별 구매 통계 계산
+    const productStats = new Map<number, {
+      productId: number;
+      category: string;
+      purchaseCount: number;
+      lastPurchased: number; // days ago
+      totalQuantity: number;
+    }>();
+
+    const now = new Date();
+
+    userPurchaseHistory.forEach(purchase => {
+      const product = products.find(p => p.id === purchase.product_id);
+      if (!product) return; // 상품 정보가 없으면 스킵
+
+      const purchaseDate = new Date(purchase.purchased_at);
+      const daysAgo = Math.floor((now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (productStats.has(purchase.product_id)) {
+        const existing = productStats.get(purchase.product_id)!;
+        existing.purchaseCount += 1;
+        existing.totalQuantity += purchase.quantity;
+        // 가장 최근 구매일로 업데이트
+        if (daysAgo < existing.lastPurchased) {
+          existing.lastPurchased = daysAgo;
+        }
+      } else {
+        productStats.set(purchase.product_id, {
+          productId: purchase.product_id,
+          category: product.category,
+          purchaseCount: 1,
+          lastPurchased: daysAgo,
+          totalQuantity: purchase.quantity
+        });
+      }
+    });
+
+    // 카테고리별 구매 횟수 계산
+    const categoryCounts = new Map<string, number>();
+    productStats.forEach(stat => {
+      categoryCounts.set(stat.category, (categoryCounts.get(stat.category) || 0) + stat.purchaseCount);
+    });
+
+    // Top 카테고리 선정 (구매 횟수 기준 상위 3개)
+    const topCategories = Array.from(categoryCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([category]) => category);
+
+    // 반복 구매 상품 선정 (2회 이상 구매한 상품)
+    const repeatPurchases = Array.from(productStats.values())
+      .filter(stat => stat.purchaseCount >= 2)
+      .map(stat => stat.productId);
+
+    // purchasedProducts 배열 생성
+    const purchasedProducts = Array.from(productStats.values()).map(stat => ({
+      productId: stat.productId,
+      category: stat.category,
+      purchaseCount: stat.purchaseCount,
+      lastPurchased: stat.lastPurchased
+    }));
+
+    return {
+      purchasedProducts,
+      topCategories,
+      repeatPurchases
+    };
+  };
+
+  // 최근 1~2개월 내 구매한 상품 ID 목록 조회 (실제 데이터 사용)
   const getRecentPurchasedProductIds = (profile: any): number[] => {
     if (!profile) return [];
     
-    // 유저별 최근 1~2개월 내 구매한 상품 ID (더미데이터)
-    // 실제로는 API에서 최근 1~2개월 구매 이력 조회
-    // 3개월 전에 구매한 상품은 포함하지 않음 (핫한 요리에 표시 가능)
-    const recentPurchaseHistory: Record<string, number[]> = {
-      '김지은': [65, 64], // 최근 1~2개월: 삼각김밥, 냉동만두 (즉석카레, 냉동볶음밥은 3개월 전 구매)
-      '박민수': [66, 68], // 최근 1~2개월: 제육볶음, 짬뽕 (순두부찌개, 스테이크는 3개월 전 구매)
-      '이영희': [72, 88]  // 최근 1~2개월: 순두부찌개, 그릭요거트 (치즈, 김치찌개는 3개월 전 구매)
-    };
+    const userId = getUserIdByProfile(profile);
+    if (!userId) return [];
     
-    return recentPurchaseHistory[profile.name] || [];
+    // 최근 60일(2개월) 내 구매이력 조회
+    const recentPurchases = getRecentPurchaseHistory(userId, 60);
+    
+    // 중복 제거하여 상품 ID 목록 반환
+    const productIds = new Set(recentPurchases.map(p => p.product_id));
+    return Array.from(productIds);
   };
 
   // 트렌드 점수 계산 (핫한 요리용)

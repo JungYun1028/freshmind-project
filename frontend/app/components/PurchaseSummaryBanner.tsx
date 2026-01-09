@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useProfile } from '../contexts/ProfileContext';
 import { selectRandomTemplate, replaceTemplateVariables } from '../data/messageTemplates';
+import { getRecentPurchaseHistory } from '../data/mockPurchaseHistory';
+import { getUserIdByProfile } from '../data/mockUsers';
+import { products } from '../data/products';
 
 interface PurchaseSummaryBannerProps {
   userId?: number; // API 호출용 user_id
@@ -42,7 +45,31 @@ export default function PurchaseSummaryBanner({
   const [message, setMessage] = useState<{ mainText: string; emoji: string } | null>(null);
   const [productChips, setProductChips] = useState<string[]>([]);
 
-  // API 호출 또는 더미데이터 사용
+  // 가중치 계산 함수들 (백엔드 purchase_insights.py와 동일한 로직)
+  const calculateTimeWeight = (purchasedAt: Date): number => {
+    const now = new Date();
+    const daysAgo = Math.floor((now.getTime() - purchasedAt.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysAgo <= 7) return 1.5;  // 최근 1주일
+    if (daysAgo <= 30) return 1.2; // 최근 1개월
+    if (daysAgo <= 90) return 1.0;  // 최근 3개월
+    return 0.7; // 그 이전
+  };
+
+  const calculateRepeatBonus = (purchaseCount: number): number => {
+    if (purchaseCount >= 6) return 2.0;
+    if (purchaseCount >= 4) return 1.5;
+    if (purchaseCount >= 2) return 1.3;
+    return 1.0;
+  };
+
+  const calculateQuantityWeight = (quantity: number): number => {
+    if (quantity >= 4) return 1.5;
+    if (quantity >= 2) return 1.2;
+    return 1.0;
+  };
+
+  // 실제 구매이력 데이터 기반으로 구매 요약 계산
   useEffect(() => {
     const fetchPurchaseSummary = async () => {
       // 프로필이 없으면 로딩만 종료
@@ -51,56 +78,131 @@ export default function PurchaseSummaryBanner({
         return;
       }
 
-      // 더미데이터 사용 (실제 API 연동 전)
-      const mockUserId = userId || (profile.name === '김지은' ? 1 : profile.name === '박민수' ? 2 : 3);
+      const profileUserId = getUserIdByProfile(profile);
+      const mockUserId = userId || profileUserId;
       
+      if (!mockUserId) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        // 실제 API 호출 (현재는 더미데이터)
+        // 실제 API 호출 (현재는 실제 구매이력 데이터 사용)
         // const response = await fetch(`http://localhost:8001/api/users/${mockUserId}/purchase-summary`);
         // const data = await response.json();
         
-        // 더미데이터
+        // 실제 구매이력 데이터 조회 (최근 30일)
+        const recentPurchases = getRecentPurchaseHistory(mockUserId, 30);
+        
+        if (recentPurchases.length === 0) {
+          // 구매이력이 없으면 기본 메시지
+          setSummaryData({
+            user_id: mockUserId,
+            user_name: profile.name,
+            total_purchases: 0,
+            insights: {
+              top_products: [],
+              repeat_purchases: []
+            },
+            message_variables: {
+              count: 0,
+              products: '',
+              most_purchased: '',
+              repeat_count: 0
+            }
+          });
+          setLoading(false);
+          return;
+        }
+
+        // 상품별 구매 통계 계산
+        const productStats = new Map<number, {
+          product_id: number;
+          product_name: string;
+          purchase_count: number;
+          total_quantity: number;
+          weighted_score: number;
+          last_purchased: Date;
+        }>();
+
+        recentPurchases.forEach(purchase => {
+          const product = products.find(p => p.id === purchase.product_id);
+          if (!product) return;
+
+          const purchaseDate = new Date(purchase.purchased_at);
+          
+          if (productStats.has(purchase.product_id)) {
+            const existing = productStats.get(purchase.product_id)!;
+            existing.purchase_count += 1;
+            existing.total_quantity += purchase.quantity;
+            
+            // 가중치 점수 계산
+            const timeWeight = calculateTimeWeight(purchaseDate);
+            const quantityWeight = calculateQuantityWeight(purchase.quantity);
+            existing.weighted_score += 1.0 * timeWeight * quantityWeight;
+            
+            // 마지막 구매일 업데이트
+            if (purchaseDate > existing.last_purchased) {
+              existing.last_purchased = purchaseDate;
+            }
+          } else {
+            const timeWeight = calculateTimeWeight(purchaseDate);
+            const quantityWeight = calculateQuantityWeight(purchase.quantity);
+            
+            productStats.set(purchase.product_id, {
+              product_id: purchase.product_id,
+              product_name: product.name,
+              purchase_count: 1,
+              total_quantity: purchase.quantity,
+              weighted_score: 1.0 * timeWeight * quantityWeight,
+              last_purchased: purchaseDate
+            });
+          }
+        });
+
+        // 반복 구매 보너스 적용
+        productStats.forEach((stats, productId) => {
+          const repeatBonus = calculateRepeatBonus(stats.purchase_count);
+          stats.weighted_score *= repeatBonus;
+        });
+
+        // 가중치 점수 기준으로 정렬
+        const sortedProducts = Array.from(productStats.values())
+          .sort((a, b) => b.weighted_score - a.weighted_score);
+
+        // Top 3 상품
+        const topProducts = sortedProducts.slice(0, 3).map(p => ({
+          product_id: p.product_id,
+          product_name: p.product_name,
+          purchase_count: p.purchase_count,
+          weighted_score: Math.round(p.weighted_score * 100) / 100
+        }));
+
+        // 반복 구매 상품 (2회 이상)
+        const repeatPurchases = sortedProducts
+          .filter(p => p.purchase_count >= 2)
+          .slice(0, 3)
+          .map(p => ({
+            product_id: p.product_id,
+            product_name: p.product_name,
+            repeat_count: p.purchase_count
+          }));
+
+        // 메시지 변수 생성
+        const topProductNames = topProducts.map(p => p.product_name);
         const mockData: PurchaseSummaryData = {
           user_id: mockUserId,
           user_name: profile.name,
-          total_purchases: profile.name === '김지은' ? 6 : profile.name === '박민수' ? 15 : 18,
+          total_purchases: recentPurchases.length,
           insights: {
-            top_products: profile.name === '김지은' 
-              ? [
-                  { product_id: 65, product_name: '삼각김밥 모음', purchase_count: 3, weighted_score: 4.5 },
-                  { product_id: 64, product_name: '냉동 만두', purchase_count: 2, weighted_score: 2.8 },
-                  { product_id: 69, product_name: '즉석 카레', purchase_count: 1, weighted_score: 1.2 }
-                ]
-              : profile.name === '박민수'
-              ? [
-                  { product_id: 66, product_name: '제육볶음 밀키트', purchase_count: 4, weighted_score: 6.0 },
-                  { product_id: 68, product_name: '연어', purchase_count: 3, weighted_score: 4.2 },
-                  { product_id: 72, product_name: '새우살', purchase_count: 2, weighted_score: 2.8 }
-                ]
-              : [
-                  { product_id: 72, product_name: '순두부찌개 밀키트', purchase_count: 5, weighted_score: 7.5 },
-                  { product_id: 88, product_name: '그릭요거트', purchase_count: 4, weighted_score: 5.6 },
-                  { product_id: 90, product_name: '치즈', purchase_count: 3, weighted_score: 4.2 }
-                ],
-            repeat_purchases: profile.name === '김지은'
-              ? [{ product_id: 65, product_name: '삼각김밥 모음', repeat_count: 3 }]
-              : profile.name === '박민수'
-              ? [{ product_id: 66, product_name: '제육볶음 밀키트', repeat_count: 4 }]
-              : [{ product_id: 72, product_name: '순두부찌개 밀키트', repeat_count: 5 }]
+            top_products: topProducts,
+            repeat_purchases: repeatPurchases
           },
           message_variables: {
-            count: profile.name === '김지은' ? 6 : profile.name === '박민수' ? 15 : 18,
-            products: profile.name === '김지은'
-              ? '삼각김밥 모음, 냉동 만두, 즉석 카레'
-              : profile.name === '박민수'
-              ? '제육볶음 밀키트, 연어, 새우살'
-              : '순두부찌개 밀키트, 그릭요거트, 치즈',
-            most_purchased: profile.name === '김지은'
-              ? '삼각김밥 모음'
-              : profile.name === '박민수'
-              ? '제육볶음 밀키트'
-              : '순두부찌개 밀키트',
-            repeat_count: profile.name === '김지은' ? 3 : profile.name === '박민수' ? 4 : 5
+            count: recentPurchases.length,
+            products: topProductNames.join(', '),
+            most_purchased: topProducts[0]?.product_name || '',
+            repeat_count: repeatPurchases[0]?.repeat_count || 0
           }
         };
 

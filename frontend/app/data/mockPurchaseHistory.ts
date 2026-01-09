@@ -85,6 +85,20 @@ export const getPurchaseHistoryByProductId = (productId: number): PurchaseHistor
 };
 
 /**
+ * 최근 N일 내 구매이력 조회 (로컬 버전 호환성 유지)
+ */
+export const getRecentPurchaseHistory = (userId: number, days: number = 60): PurchaseHistory[] => {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  
+  return mockPurchaseHistory.filter(item => {
+    if (item.userId !== userId) return false;
+    const purchaseDate = new Date(item.purchasedAt);
+    return purchaseDate >= cutoffDate;
+  });
+};
+
+/**
  * 유저가 최근 구매한 상품 ID 목록 (중복 제거)
  */
 export const getRecentPurchasedProductIds = (userId: number, limit: number = 10): number[] => {
