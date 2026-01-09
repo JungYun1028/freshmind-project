@@ -14,7 +14,7 @@
 - 프로필 전환으로 다양한 추천 경험
 
 ### 2. 스마트 상품 정렬
-- **개인화 추천순**: 구매이력 + 프로필 기반 추천
+- **개인화 추천순**: 구매이력 + 프로필 기반 추천 (구매이력 80% 가중치)
 - **인기순, 신상품순, 가격순, 별점순**
 - **카테고리 필터** (10개 카테고리)
 - **핫한 요리 탭**: 트렌드 상품 추천 (밀키트/간편식 우선)
@@ -29,11 +29,11 @@
 - 감정 분석 기반 상품 추천 (3-5개)
 - 구매이력 기반 맞춤 추천 이유 설명
 - 상품 추천 로직:
-  - ① 반복 구매 상품: 60 + (구매횟수 × 5점)
-  - ② 최근 구매 카테고리: 40~60점
-  - ③ 선호 카테고리 미구매 상품: 20~45점
-  - ④ 프로필 매칭: 30% 가중치
-  - ⑤ 인기도: 10% 가중치
+  - ① 반복 구매 상품: 100 + (구매횟수 × 10점) + 최근 구매 보너스
+  - ② 최근 구매 카테고리: 60~90점
+  - ③ 선호 카테고리 미구매 상품: 50~75점
+  - ④ 구매이력 가중치: **80%** (강화)
+  - ⑤ 프로필 & 인기도: 보조 가중치
 
 ## 🏗️ 기술 스택
 
@@ -114,9 +114,9 @@ freshmind-project/
 │   │   │   ├── PurchaseSummaryBanner.tsx  # 구매 요약
 │   │   │   └── ...
 │   │   ├── data/              # Mock 데이터
-│   │   │   ├── products.ts           # 100개 상품
+│   │   │   ├── products.ts           # 175개 상품
 │   │   │   ├── mockUsers.ts          # 3개 유저 계정
-│   │   │   └── mockPurchaseHistory.ts  # 구매이력
+│   │   │   └── mockPurchaseHistory.ts  # 구매이력 (150건)
 │   │   ├── contexts/          # React Context
 │   │   ├── types/             # TypeScript 타입
 │   │   └── utils/             # 유틸리티 함수
@@ -150,13 +150,13 @@ user_id, name, birth_date, gender, age_group,
 occupation, marital_status
 ```
 
-**Products** - 상품 정보 (100개)
+**Products** - 상품 정보 (175개)
 ```sql
 product_id, name, category, price, rating,
 target_age_groups, target_gender, used_in, tags
 ```
 
-**Purchase_History** - 구매이력
+**Purchase_History** - 구매이력 (150건)
 ```sql
 purchase_id, user_id, product_id, quantity, purchased_at
 ```
@@ -181,10 +181,10 @@ sentiment, sentiment_score, recommended_products
    - 최근 구매 카테고리 분석
    - 선호 카테고리 TOP 3 추출
    ↓
-2. 통합 점수 계산
-   - 구매이력 점수 (50%)
-   - 프로필 점수 (30%)
-   - 인기도 점수 (10%)
+2. 통합 점수 계산 (모든 상품)
+   - 구매이력 점수 (80%) ⬆️ 강화
+   - 프로필 점수 (보조, 구매이력 있으면 낮게)
+   - 인기도 점수 (보조, 구매이력 있으면 낮게)
    ↓
 3. 상위 30개 상품 선정
    ↓
@@ -195,6 +195,12 @@ sentiment, sentiment_score, recommended_products
    ↓
 5. 최종 추천 + 이유 설명
 ```
+
+#### 구매이력 점수 계산
+- **반복 구매 상품**: 100 + (구매횟수 × 10점) + 최근 구매 보너스
+- **최근 구매 카테고리**: 60점 + (1개월 내 +30점)
+- **최근 카테고리의 미구매 상품**: 50점 + (1개월 +25, 2개월 +15)
+- **선호 카테고리 미구매 상품**: 30점
 
 ## 📱 주요 화면
 
@@ -235,9 +241,9 @@ sentiment, sentiment_score, recommended_products
 ## 🛠️ 개발 모드
 
 PostgreSQL 없이도 개발 가능 (Mock 데이터 사용):
-- `frontend/app/data/products.ts` - 100개 상품
+- `frontend/app/data/products.ts` - 175개 상품
 - `frontend/app/data/mockUsers.ts` - 3개 유저
-- `frontend/app/data/mockPurchaseHistory.ts` - 구매이력
+- `frontend/app/data/mockPurchaseHistory.ts` - 구매이력 (150건)
 
 ## 📝 라이선스
 

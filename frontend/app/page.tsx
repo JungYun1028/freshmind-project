@@ -44,45 +44,51 @@ export default function Home() {
     let score = 0;
     const { purchasedProducts, topCategories, repeatPurchases } = purchaseHistory;
 
-    // 1. 반복 구매 상품 (최고 우선순위) - 가중치: 60점
+    // 1. 반복 구매 상품 (최고 우선순위) - 가중치: 100점 (강화)
     if (repeatPurchases.includes(product.id)) {
       const purchaseData = purchasedProducts.find(p => p.productId === product.id);
       if (purchaseData) {
-        // 반복 구매 횟수에 따라 점수 증가
-        score += 60 + (purchaseData.purchaseCount * 5); // 3회 구매면 60 + 15 = 75점
+        // 반복 구매 횟수에 따라 점수 증가 (더 강하게)
+        score += 100 + (purchaseData.purchaseCount * 10); // 3회 구매면 100 + 30 = 130점
+        // 최근 구매일수록 높은 점수
+        if (purchaseData.lastPurchased <= 30) {
+          score += 20; // 최근 1개월 내 반복 구매
+        } else if (purchaseData.lastPurchased <= 60) {
+          score += 10; // 최근 2개월 내 반복 구매
+        }
       }
     }
 
-    // 2. 최근 구매한 상품과 같은 카테고리 - 가중치: 40점
+    // 2. 최근 구매한 상품과 같은 카테고리 - 가중치: 60점 (강화)
     if (topCategories.includes(product.category)) {
-      score += 40;
+      score += 60;
       
       // 최근 구매한 상품과 정확히 같은 카테고리면 추가 보너스
       const recentSameCategory = purchasedProducts.filter(
         p => p.category === product.category && p.lastPurchased <= 30
       );
       if (recentSameCategory.length > 0) {
-        score += 20; // 같은 카테고리 최근 구매 보너스
+        score += 30; // 같은 카테고리 최근 구매 보너스 (강화)
       }
     }
 
-    // 3. 최근 구매한 상품과 유사한 상품 (같은 카테고리) - 가중치: 30점
+    // 3. 최근 구매한 상품과 유사한 상품 (같은 카테고리) - 가중치: 50점 (강화)
     const sameCategoryPurchases = purchasedProducts.filter(p => p.category === product.category);
     if (sameCategoryPurchases.length > 0 && !repeatPurchases.includes(product.id)) {
-      score += 30;
+      score += 50;
       
       // 최근 구매일수록 높은 점수
       const mostRecent = Math.min(...sameCategoryPurchases.map(p => p.lastPurchased));
       if (mostRecent <= 30) {
-        score += 15; // 최근 1개월 내 구매한 카테고리
+        score += 25; // 최근 1개월 내 구매한 카테고리 (강화)
       } else if (mostRecent <= 60) {
-        score += 10; // 최근 2개월 내 구매한 카테고리
+        score += 15; // 최근 2개월 내 구매한 카테고리
       }
     }
 
-    // 4. 미구매 상품 중 선호 카테고리 - 가중치: 20점
+    // 4. 미구매 상품 중 선호 카테고리 - 가중치: 30점 (강화)
     if (!purchasedProducts.some(p => p.productId === product.id) && topCategories.includes(product.category)) {
-      score += 20;
+      score += 30;
     }
 
     return score;
@@ -97,39 +103,74 @@ export default function Home() {
     // 구매이력 데이터 조회
     const purchaseHistory = getPurchaseHistory(profile);
     
-    // 1. 구매이력 기반 점수 (최우선, 가중치: 50점)
+    // 1. 구매이력 기반 점수 (최우선, 가중치: 80%) - 강화
     const purchaseScore = calculatePurchaseHistoryScore(product, purchaseHistory);
-    score += purchaseScore * 0.5; // 구매이력 점수를 50% 반영
+    score += purchaseScore * 0.8; // 구매이력 점수를 80% 반영 (50% → 80%로 증가)
     
-    // 2. 연령대 매칭 (가중치: 30점)
-    if (product.targetAge.includes(profile.ageGroup)) {
-      score += 30;
-    }
-    
-    // 3. 성별 매칭 (가중치: 20점)
-    if (product.targetGender === 'all') {
-      score += 5; // 모든 성별 대상은 낮은 점수
-    } else if (profile.gender === 'M') {
-      if (product.targetGender === 'male-oriented') {
-        score += 20;
-      } else if (product.targetGender === 'male') {
-        score += 15;
+    // 구매이력이 있는 경우 구매이력 점수가 지배적이 되도록 함
+    if (purchaseScore > 0) {
+      // 구매이력 점수가 있으면 프로필/인기도 점수는 보조적으로만 사용
+      // 2. 연령대 매칭 (가중치: 10점으로 감소)
+      if (product.targetAge.includes(profile.ageGroup)) {
+        score += 10;
       }
-    } else if (profile.gender === 'F') {
-      if (product.targetGender === 'female-oriented') {
-        score += 20;
-      } else if (product.targetGender === 'female') {
-        score += 15;
+      
+      // 3. 성별 매칭 (가중치: 8점으로 감소)
+      if (product.targetGender === 'all') {
+        score += 2; // 모든 성별 대상은 낮은 점수
+      } else if (profile.gender === 'M') {
+        if (product.targetGender === 'male-oriented') {
+          score += 8;
+        } else if (product.targetGender === 'male') {
+          score += 6;
+        }
+      } else if (profile.gender === 'F') {
+        if (product.targetGender === 'female-oriented') {
+          score += 8;
+        } else if (product.targetGender === 'female') {
+          score += 6;
+        }
       }
+      
+      // 4. 연령대와 성별 조합에 따른 카테고리 가중치 (가중치: 5점으로 감소)
+      const categoryBonus = getCategoryBonus(profile.ageGroup, profile.gender, product.category);
+      score += categoryBonus * 0.2; // 프로필 점수는 20% 반영 (50% → 20%로 감소)
+      
+      // 5. 인기도 보너스 (가중치: 5점으로 감소, 구매이력이 있을 때는 낮게)
+      const reviewScore = Math.min((product.reviews / 2000) * 5, 5);
+      score += reviewScore;
+    } else {
+      // 구매이력이 없는 경우 프로필 기반 점수를 더 강하게 적용
+      // 2. 연령대 매칭 (가중치: 25점)
+      if (product.targetAge.includes(profile.ageGroup)) {
+        score += 25;
+      }
+      
+      // 3. 성별 매칭 (가중치: 20점)
+      if (product.targetGender === 'all') {
+        score += 5;
+      } else if (profile.gender === 'M') {
+        if (product.targetGender === 'male-oriented') {
+          score += 20;
+        } else if (product.targetGender === 'male') {
+          score += 15;
+        }
+      } else if (profile.gender === 'F') {
+        if (product.targetGender === 'female-oriented') {
+          score += 20;
+        } else if (product.targetGender === 'female') {
+          score += 15;
+        }
+      }
+      
+      // 4. 연령대와 성별 조합에 따른 카테고리 가중치
+      const categoryBonus = getCategoryBonus(profile.ageGroup, profile.gender, product.category);
+      score += categoryBonus * 0.5;
+      
+      // 5. 인기도 보너스 (구매이력이 없을 때는 더 높게)
+      const reviewScore = Math.min((product.reviews / 2000) * 15, 15);
+      score += reviewScore;
     }
-    
-    // 4. 연령대와 성별 조합에 따른 카테고리 가중치 (가중치: 15점)
-    const categoryBonus = getCategoryBonus(profile.ageGroup, profile.gender, product.category);
-    score += categoryBonus * 0.5; // 프로필 점수는 50% 반영
-    
-    // 5. 인기도 보너스 (가중치: 10점)
-    const reviewScore = Math.min((product.reviews / 2000) * 10, 10);
-    score += reviewScore;
     
     return score;
   };
@@ -170,14 +211,14 @@ export default function Home() {
     const now = new Date();
 
     userPurchaseHistory.forEach(purchase => {
-      const product = products.find(p => p.id === purchase.product_id);
+      const product = products.find(p => p.id === purchase.productId);
       if (!product) return; // 상품 정보가 없으면 스킵
 
-      const purchaseDate = new Date(purchase.purchased_at);
+      const purchaseDate = new Date(purchase.purchasedAt);
       const daysAgo = Math.floor((now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24));
 
-      if (productStats.has(purchase.product_id)) {
-        const existing = productStats.get(purchase.product_id)!;
+      if (productStats.has(purchase.productId)) {
+        const existing = productStats.get(purchase.productId)!;
         existing.purchaseCount += 1;
         existing.totalQuantity += purchase.quantity;
         // 가장 최근 구매일로 업데이트
@@ -185,8 +226,8 @@ export default function Home() {
           existing.lastPurchased = daysAgo;
         }
       } else {
-        productStats.set(purchase.product_id, {
-          productId: purchase.product_id,
+        productStats.set(purchase.productId, {
+          productId: purchase.productId,
           category: product.category,
           purchaseCount: 1,
           lastPurchased: daysAgo,
@@ -238,7 +279,7 @@ export default function Home() {
     const recentPurchases = getRecentPurchaseHistory(userId, 60);
     
     // 중복 제거하여 상품 ID 목록 반환
-    const productIds = new Set(recentPurchases.map(p => p.product_id));
+    const productIds = new Set(recentPurchases.map(p => p.productId));
     return Array.from(productIds);
   };
 
@@ -360,11 +401,8 @@ export default function Home() {
         return { ...p, _trendScore: trendScore };
       });
       
-      // 4. 트렌드 점수 기준으로 정렬
+      // 4. 트렌드 점수 기준으로 기본 정렬 (나중에 사용자 정렬 옵션에 따라 재정렬됨)
       filtered.sort((a: any, b: any) => (b._trendScore || 0) - (a._trendScore || 0));
-      
-      // 5. 상위 30개만 표시
-      filtered = filtered.slice(0, 30);
     } else if (selectedCategory !== "전체") {
       filtered = filtered.filter(p => p.category === selectedCategory);
     }
@@ -384,47 +422,123 @@ export default function Home() {
     
     // 프로필이 설정된 경우 개인화 점수 추가
     if (isProfileSet && profile) {
+      // 구매이력 데이터 확인
+      const purchaseHistory = getPurchaseHistory(profile);
       console.log('🔍 프로필 정보:', profile);
+      console.log('📦 구매이력 통계:', {
+        totalProducts: purchaseHistory.purchasedProducts.length,
+        topCategories: purchaseHistory.topCategories,
+        repeatPurchases: purchaseHistory.repeatPurchases,
+        sampleProducts: purchaseHistory.purchasedProducts.slice(0, 5)
+      });
+      
       sorted.forEach((product: any) => {
         product._personalizedScore = calculatePersonalizedScore(product);
       });
-      console.log('📊 상위 5개 상품 점수:', sorted.slice(0, 5).map(p => ({
-        name: p.name,
-        category: p.category,
-        score: (p as any)._personalizedScore
-      })));
+      
+      // 구매이력 점수 상세 확인 (정렬 전)
+      const purchaseHistoryForDebug = getPurchaseHistory(profile);
+      const topScoredProducts = sorted
+        .slice(0, 10)
+        .map((p: any) => {
+          const purchaseScore = calculatePurchaseHistoryScore(p, purchaseHistoryForDebug);
+          return {
+            name: p.name,
+            category: p.category,
+            id: p.id,
+            totalScore: (p as any)._personalizedScore,
+            purchaseScore: purchaseScore,
+            isRepeatPurchase: purchaseHistoryForDebug.repeatPurchases.includes(p.id),
+            isTopCategory: purchaseHistoryForDebug.topCategories.includes(p.category)
+          };
+        });
+      
+      console.log('📊 상위 10개 상품 점수 상세:', topScoredProducts);
     }
     
-    switch (sortBy) {
-      case "personalized":
-        // 개인화 추천순 (프로필 기반)
-        if (isProfileSet) {
-          console.log('✅ 개인화 추천순 정렬 실행');
-          sorted.sort((a: any, b: any) => 
-            (b._personalizedScore || 0) - (a._personalizedScore || 0)
-          );
-          console.log('🏆 정렬 후 상위 5개:', sorted.slice(0, 5).map(p => p.name));
-        } else {
-          // 프로필 없으면 인기순
+    // "핫한 요리" 탭인 경우 정렬 옵션에 따라 정렬
+    if (selectedCategory === "핫한 요리") {
+      switch (sortBy) {
+        case "personalized":
+          // 개인화 추천순: 트렌드 점수 + 개인화 점수 조합
+          if (isProfileSet) {
+            sorted.sort((a: any, b: any) => {
+              const scoreA = ((b._trendScore || 0) * 0.3) + ((b._personalizedScore || 0) * 0.7);
+              const scoreB = ((a._trendScore || 0) * 0.3) + ((a._personalizedScore || 0) * 0.7);
+              return scoreA - scoreB;
+            });
+          } else {
+            // 프로필 없으면 트렌드 점수 기준
+            sorted.sort((a: any, b: any) => (b._trendScore || 0) - (a._trendScore || 0));
+          }
+          break;
+        case "price-low":
+          // 가격 낮은순: 가격 기준 정렬, 동일 가격이면 트렌드 점수 높은 순
+          sorted.sort((a: any, b: any) => {
+            if (a.price !== b.price) return a.price - b.price;
+            return (b._trendScore || 0) - (a._trendScore || 0);
+          });
+          break;
+        case "price-high":
+          // 가격 높은순: 가격 기준 정렬, 동일 가격이면 트렌드 점수 높은 순
+          sorted.sort((a: any, b: any) => {
+            if (a.price !== b.price) return b.price - a.price;
+            return (b._trendScore || 0) - (a._trendScore || 0);
+          });
+          break;
+        case "reviews":
+          // 리뷰 많은순: 리뷰 수 기준 정렬, 동일 리뷰 수면 트렌드 점수 높은 순
+          sorted.sort((a: any, b: any) => {
+            if (a.reviews !== b.reviews) return b.reviews - a.reviews;
+            return (b._trendScore || 0) - (a._trendScore || 0);
+          });
+          break;
+        case "rating":
+          // 평점 높은순: 평점 기준 정렬, 동일 평점이면 트렌드 점수 높은 순
+          sorted.sort((a: any, b: any) => {
+            if (a.rating !== b.rating) return b.rating - a.rating;
+            return (b._trendScore || 0) - (a._trendScore || 0);
+          });
+          break;
+        case "popular":
+        default:
+          // 인기순: 트렌드 점수 기준 (기본값)
+          sorted.sort((a: any, b: any) => (b._trendScore || 0) - (a._trendScore || 0));
+          break;
+      }
+    } else {
+      // 일반 카테고리 정렬
+      switch (sortBy) {
+        case "personalized":
+          // 개인화 추천순 (프로필 기반)
+          if (isProfileSet) {
+            console.log('✅ 개인화 추천순 정렬 실행');
+            sorted.sort((a: any, b: any) => 
+              (b._personalizedScore || 0) - (a._personalizedScore || 0)
+            );
+            console.log('🏆 정렬 후 상위 5개:', sorted.slice(0, 5).map(p => p.name));
+          } else {
+            // 프로필 없으면 인기순
+            sorted.sort((a, b) => (b.reviews * b.rating) - (a.reviews * a.rating));
+          }
+          break;
+        case "price-low":
+          sorted.sort((a, b) => a.price - b.price);
+          break;
+        case "price-high":
+          sorted.sort((a, b) => b.price - a.price);
+          break;
+        case "reviews":
+          sorted.sort((a, b) => b.reviews - a.reviews);
+          break;
+        case "rating":
+          sorted.sort((a, b) => b.rating - a.rating);
+          break;
+        case "popular":
+        default:
           sorted.sort((a, b) => (b.reviews * b.rating) - (a.reviews * a.rating));
-        }
-        break;
-      case "price-low":
-        sorted.sort((a, b) => a.price - b.price);
-        break;
-      case "price-high":
-        sorted.sort((a, b) => b.price - a.price);
-        break;
-      case "reviews":
-        sorted.sort((a, b) => b.reviews - a.reviews);
-        break;
-      case "rating":
-        sorted.sort((a, b) => b.rating - a.rating);
-        break;
-      case "popular":
-      default:
-        sorted.sort((a, b) => (b.reviews * b.rating) - (a.reviews * a.rating));
-        break;
+          break;
+      }
     }
 
     return sorted;

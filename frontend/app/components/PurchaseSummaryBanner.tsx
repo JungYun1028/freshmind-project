@@ -31,8 +31,8 @@ interface PurchaseSummaryData {
   message_variables: {
     count: number;
     products: string;
-    most_purchased: string;
-    repeat_count: number;
+    mostPurchased: string; // 템플릿 변수명과 일치
+    repeatCount: number; // 템플릿 변수명과 일치
   };
 }
 
@@ -107,15 +107,15 @@ export default function PurchaseSummaryBanner({
             message_variables: {
               count: 0,
               products: '',
-              most_purchased: '',
-              repeat_count: 0
+              mostPurchased: '',
+              repeatCount: 0
             }
           });
           setLoading(false);
           return;
         }
 
-        // 상품별 구매 통계 계산
+        // 상품별 구매 통계 계산 (백엔드 로직과 동일하게)
         const productStats = new Map<number, {
           product_id: number;
           product_name: string;
@@ -123,47 +123,56 @@ export default function PurchaseSummaryBanner({
           total_quantity: number;
           weighted_score: number;
           last_purchased: Date;
+          purchases: Array<{ date: Date; quantity: number }>; // 각 구매 기록 저장
         }>();
 
+        // 1단계: 모든 구매 기록을 수집
         recentPurchases.forEach(purchase => {
-          const product = products.find(p => p.id === purchase.product_id);
+          const product = products.find(p => p.id === purchase.productId);
           if (!product) return;
 
-          const purchaseDate = new Date(purchase.purchased_at);
+          const purchaseDate = new Date(purchase.purchasedAt);
           
-          if (productStats.has(purchase.product_id)) {
-            const existing = productStats.get(purchase.product_id)!;
+          if (productStats.has(purchase.productId)) {
+            const existing = productStats.get(purchase.productId)!;
             existing.purchase_count += 1;
             existing.total_quantity += purchase.quantity;
-            
-            // 가중치 점수 계산
-            const timeWeight = calculateTimeWeight(purchaseDate);
-            const quantityWeight = calculateQuantityWeight(purchase.quantity);
-            existing.weighted_score += 1.0 * timeWeight * quantityWeight;
+            existing.purchases.push({ date: purchaseDate, quantity: purchase.quantity });
             
             // 마지막 구매일 업데이트
             if (purchaseDate > existing.last_purchased) {
               existing.last_purchased = purchaseDate;
             }
           } else {
-            const timeWeight = calculateTimeWeight(purchaseDate);
-            const quantityWeight = calculateQuantityWeight(purchase.quantity);
-            
-            productStats.set(purchase.product_id, {
-              product_id: purchase.product_id,
+            productStats.set(purchase.productId, {
+              product_id: purchase.productId,
               product_name: product.name,
               purchase_count: 1,
               total_quantity: purchase.quantity,
-              weighted_score: 1.0 * timeWeight * quantityWeight,
-              last_purchased: purchaseDate
+              weighted_score: 0, // 나중에 계산
+              last_purchased: purchaseDate,
+              purchases: [{ date: purchaseDate, quantity: purchase.quantity }]
             });
           }
         });
 
-        // 반복 구매 보너스 적용
+        // 2단계: 각 상품에 대해 가중치 점수 계산
+        // 점수 = 구매횟수 × 시간가중치 × 반복구매보너스 × 수량가중치
         productStats.forEach((stats, productId) => {
+          // 반복 구매 보너스 (구매 횟수 기반)
           const repeatBonus = calculateRepeatBonus(stats.purchase_count);
-          stats.weighted_score *= repeatBonus;
+          
+          // 각 구매마다 가중치 계산 후 합산
+          let totalScore = 0;
+          stats.purchases.forEach(purchase => {
+            const timeWeight = calculateTimeWeight(purchase.date);
+            const quantityWeight = calculateQuantityWeight(purchase.quantity);
+            // 각 구매의 점수 = 1 × 시간가중치 × 수량가중치
+            totalScore += 1.0 * timeWeight * quantityWeight;
+          });
+          
+          // 반복 구매 보너스 적용 (전체 점수에 곱하기)
+          stats.weighted_score = totalScore * repeatBonus;
         });
 
         // 가중치 점수 기준으로 정렬
@@ -201,8 +210,8 @@ export default function PurchaseSummaryBanner({
           message_variables: {
             count: recentPurchases.length,
             products: topProductNames.join(', '),
-            most_purchased: topProducts[0]?.product_name || '',
-            repeat_count: repeatPurchases[0]?.repeat_count || 0
+            mostPurchased: topProducts[0]?.product_name || '', // 템플릿 변수명과 일치
+            repeatCount: repeatPurchases[0]?.repeat_count || 0 // 템플릿 변수명과 일치
           }
         };
 
