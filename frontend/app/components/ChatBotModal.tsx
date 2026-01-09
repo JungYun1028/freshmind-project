@@ -44,6 +44,7 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<'gpt' | 'gemini'>('gpt');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 메시지 스크롤
@@ -67,13 +68,15 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
 
     try {
       // 구매이력 데이터 준비
-      let purchaseHistory = [];
+      let purchaseHistory: any[] = [];
       if (profile) {
         const userId = getUserIdByProfile(profile);
         if (userId) {
           purchaseHistory = getPurchaseHistoryByUserId(userId);
         }
       }
+
+      console.log(`🤖 선택된 AI 모델: ${selectedModel.toUpperCase()}`);
 
       // Backend API 호출
       const response = await fetch('http://localhost:8001/api/chatbot/chat', {
@@ -90,6 +93,7 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
           } : null,
           products: products,
           purchase_history: purchaseHistory,  // 구매이력 추가
+          model: selectedModel,  // 선택된 AI 모델
         }),
       });
 
@@ -98,6 +102,12 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
       }
 
       const data = await response.json();
+      
+      console.log(`✅ API 응답 받음`);
+      console.log(`🤖 요청한 모델: ${selectedModel.toUpperCase()}`);
+      console.log(`🤖 실제 사용된 모델: ${data.model_used?.toUpperCase()}`);
+      console.log(`📦 추천 상품 수: ${data.recommended_products?.length || 0}개`);
+      console.log(`💭 감정 분석: ${data.sentiment} (${data.sentiment_score})`);
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -135,21 +145,21 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
       <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl sm:max-h-[80vh] h-[90vh] sm:h-auto flex flex-col shadow-2xl">
         {/* 헤더 */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-t-3xl flex items-center justify-between">
+        <div className="bg-gray-800 p-4 rounded-t-3xl flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center">
               <span className="text-2xl">🤖</span>
             </div>
             <div>
               <h2 className="text-white font-bold text-lg">AI 쇼핑 도우미</h2>
-              <p className="text-purple-100 text-xs">
+              <p className="text-gray-400 text-xs">
                 {profile ? `${profile.name}님 전용 추천` : '맞춤 상품 추천'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+            className="text-white hover:bg-gray-700 rounded-full p-2 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -161,7 +171,7 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
           {messages.map((message) => (
             <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] ${message.role === 'user' ? 'bg-purple-600 text-white' : 'bg-white text-gray-900'} rounded-2xl p-4 shadow-sm`}>
+              <div className={`max-w-[80%] ${message.role === 'user' ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'} rounded-2xl p-4 shadow-sm`}>
                 <p className="whitespace-pre-wrap text-sm">{message.content}</p>
                 
                 {/* 추천 상품 카드들 */}
@@ -180,7 +190,7 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
                               <h4 className="font-medium text-sm text-gray-900">{product.name}</h4>
                               <p className="text-xs text-gray-600 mt-1">{product.reason}</p>
                               <div className="flex items-center gap-2 mt-2">
-                                <span className="text-sm font-bold text-purple-600">
+                                <span className="text-sm font-bold text-gray-900">
                                   {product.price.toLocaleString()}원
                                 </span>
                                 <span className="text-xs text-gray-500">
@@ -200,7 +210,7 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
                         onShowRecommendedProducts(productIds);
                         onClose();
                       }}
-                      className="mt-3 w-full py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                      className="mt-3 w-full py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -222,9 +232,9 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
             <div className="flex justify-start">
               <div className="bg-white rounded-2xl p-4 shadow-sm">
                 <div className="flex gap-2">
-                  <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
               </div>
             </div>
@@ -235,22 +245,46 @@ export default function ChatBotModal({ isOpen, onClose, onShowRecommendedProduct
 
         {/* 입력 영역 */}
         <div className="p-4 bg-white border-t border-gray-200 rounded-b-3xl">
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-3">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="예: 아이 간식 추천해줄래?"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-500 text-gray-900"
               disabled={isLoading}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
-              className="bg-purple-600 text-white px-6 py-3 rounded-full hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+              className="bg-gray-800 text-white px-6 py-3 rounded-full hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
             >
               전송
+            </button>
+          </div>
+          
+          {/* 모델 선택 토글 */}
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => setSelectedModel('gpt')}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+                selectedModel === 'gpt'
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+              }`}
+            >
+              GPT-4o
+            </button>
+            <button
+              onClick={() => setSelectedModel('gemini')}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+                selectedModel === 'gemini'
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+              }`}
+            >
+              Gemini
             </button>
           </div>
         </div>

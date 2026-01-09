@@ -1,32 +1,48 @@
 import os
 import json
 from openai import OpenAI
-from typing import List, Dict, Any
+import google.generativeai as genai
+from typing import List, Dict, Any, Literal
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from collections import Counter
 
-# OpenAI 클라이언트 초기화
-def get_openai_client():
-    """secret.json에서 OpenAI API 키를 로드하고 클라이언트 반환"""
-    try:
-        # secret.json 파일에서 API 키 읽기 (프로젝트 루트)
-        # backend/app/services/chatbot.py -> backend/ -> freshmind-project/
+# 지원하는 AI 모델 타입
+AIModel = Literal["gpt", "gemini"]
+
+# secret.json 경로 캐싱
+_secret_path = None
+
+def get_secret_path():
+    """secret.json 파일 경로를 반환합니다"""
+    global _secret_path
+    if _secret_path is None:
         current_file = os.path.abspath(__file__)
         backend_app_services = os.path.dirname(current_file)  # backend/app/services
         backend_app = os.path.dirname(backend_app_services)    # backend/app
         backend = os.path.dirname(backend_app)                  # backend
         project_root = os.path.dirname(backend)                 # freshmind-project
-        secret_path = os.path.join(project_root, 'secret.json')
-        
-        print(f"🔍 Looking for secret.json at: {secret_path}")
-        
-        if not os.path.exists(secret_path):
-            raise FileNotFoundError(f"secret.json not found at {secret_path}")
-        
-        with open(secret_path, 'r') as f:
-            secrets = json.load(f)
-        
+        _secret_path = os.path.join(project_root, 'secret.json')
+    return _secret_path
+
+
+def load_secrets() -> dict:
+    """secret.json에서 API 키들을 로드합니다"""
+    secret_path = get_secret_path()
+    print(f"🔍 Looking for secret.json at: {secret_path}")
+    
+    if not os.path.exists(secret_path):
+        raise FileNotFoundError(f"secret.json not found at {secret_path}")
+    
+    with open(secret_path, 'r') as f:
+        return json.load(f)
+
+
+# OpenAI 클라이언트 초기화
+def get_openai_client():
+    """secret.json에서 OpenAI API 키를 로드하고 클라이언트 반환"""
+    try:
+        secrets = load_secrets()
         api_key = secrets.get('openai_api_key')
         if not api_key:
             raise ValueError("OpenAI API key not found in secret.json")
@@ -36,6 +52,23 @@ def get_openai_client():
     except Exception as e:
         print(f"❌ Failed to load OpenAI client: {str(e)}")
         raise Exception(f"Failed to load OpenAI client: {str(e)}")
+
+
+# Gemini 클라이언트 초기화
+def get_gemini_client():
+    """secret.json에서 Google AI API 키를 로드하고 Gemini 설정"""
+    try:
+        secrets = load_secrets()
+        api_key = secrets.get('googleai_api_key')
+        if not api_key:
+            raise ValueError("Google AI API key not found in secret.json")
+        
+        genai.configure(api_key=api_key)
+        print(f"✅ Gemini API key loaded successfully")
+        return genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"❌ Failed to load Gemini client: {str(e)}")
+        raise Exception(f"Failed to load Gemini client: {str(e)}")
 
 
 class SentimentResult(BaseModel):
@@ -233,17 +266,17 @@ def calculate_personalized_score(
     return total_score
 
 
-async def analyze_intent(message: str) -> IntentAnalysis:
+async def analyze_intent(message: str, model: AIModel = "gpt") -> IntentAnalysis:
     """
     사용자 메시지의 의도를 분석하여 상품 추천이 필요한지 판단합니다.
     
     Args:
         message: 사용자 메시지
+        model: 사용할 AI 모델 ("gpt" 또는 "gemini")
         
     Returns:
         IntentAnalysis: 의도 분석 결과
     """
-    client = get_openai_client()
     
     prompt = f"""
 다음 사용자 메시지를 분석하여 상품 추천이 필요한지 판단해주세요.
@@ -279,17 +312,28 @@ intent_type 분류:
 """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "당신은 사용자의 의도를 정확히 파악하는 전문가입니다. JSON 형식으로만 응답하세요."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
-        )
-        
-        result = json.loads(response.choices[0].message.content)
+        if model == "gpt":
+            client = get_openai_client()
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "당신은 사용자의 의도를 정확히 파악하는 전문가입니다. JSON 형식으로만 응답하세요."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            result = json.loads(response.choices[0].message.content)
+        else:  # gemini
+            client = get_gemini_client()
+            response = client.generate_content(
+                f"당신은 사용자의 의도를 정확히 파악하는 전문가입니다. JSON 형식으로만 응답하세요.\n\n{prompt}",
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.3,
+                    response_mime_type="application/json"
+                )
+            )
+            result = json.loads(response.text)
         
         return IntentAnalysis(
             needs_product_recommendation=result['needs_product_recommendation'],
@@ -306,17 +350,17 @@ intent_type 분류:
         )
 
 
-async def analyze_sentiment(message: str) -> SentimentResult:
+async def analyze_sentiment(message: str, model: AIModel = "gpt") -> SentimentResult:
     """
     사용자 메시지의 감정을 분석합니다.
     
     Args:
         message: 사용자 메시지
+        model: 사용할 AI 모델 ("gpt" 또는 "gemini")
         
     Returns:
         SentimentResult: 감정 분석 결과 (sentiment, score, keywords)
     """
-    client = get_openai_client()
     
     prompt = f"""
 다음 사용자 메시지의 감정을 분석하고 키워드를 추출해주세요.
@@ -339,17 +383,28 @@ async def analyze_sentiment(message: str) -> SentimentResult:
 """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "당신은 감정 분석 전문가입니다. JSON 형식으로만 응답하세요."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
-        )
-        
-        result = json.loads(response.choices[0].message.content)
+        if model == "gpt":
+            client = get_openai_client()
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "당신은 감정 분석 전문가입니다. JSON 형식으로만 응답하세요."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            result = json.loads(response.choices[0].message.content)
+        else:  # gemini
+            client = get_gemini_client()
+            response = client.generate_content(
+                f"당신은 감정 분석 전문가입니다. JSON 형식으로만 응답하세요.\n\n{prompt}",
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.3,
+                    response_mime_type="application/json"
+                )
+            )
+            result = json.loads(response.text)
         
         return SentimentResult(
             sentiment=result['sentiment'],
@@ -371,7 +426,8 @@ async def recommend_products(
     sentiment_result: SentimentResult,
     user_profile: Dict[str, Any],
     all_products: List[Dict[str, Any]],
-    purchase_history: List[Dict[str, Any]] = []
+    purchase_history: List[Dict[str, Any]] = [],
+    model: AIModel = "gpt"
 ) -> List[ProductRecommendation]:
     """
     사용자 메시지, 감정 분석 결과, 프로필, 구매이력 기반으로 상품을 추천합니다.
@@ -382,11 +438,11 @@ async def recommend_products(
         user_profile: 사용자 프로필 (gender, ageGroup 등)
         all_products: 전체 상품 목록
         purchase_history: 구매이력 (신규)
+        model: 사용할 AI 모델 ("gpt" 또는 "gemini")
         
     Returns:
         List[ProductRecommendation]: 추천 상품 목록 (3-5개)
     """
-    client = get_openai_client()
     
     # 구매이력 분석
     purchase_analysis = analyze_purchase_history(purchase_history, all_products)
@@ -468,17 +524,29 @@ async def recommend_products(
 """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "당신은 식재료 전문 추천 시스템입니다. JSON 형식으로만 응답하세요."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            response_format={"type": "json_object"}
-        )
+        if model == "gpt":
+            client = get_openai_client()
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "당신은 식재료 전문 추천 시스템입니다. JSON 형식으로만 응답하세요."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                response_format={"type": "json_object"}
+            )
+            result = json.loads(response.choices[0].message.content)
+        else:  # gemini
+            client = get_gemini_client()
+            response = client.generate_content(
+                f"당신은 식재료 전문 추천 시스템입니다. JSON 형식으로만 응답하세요.\n\n{prompt}",
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.7,
+                    response_mime_type="application/json"
+                )
+            )
+            result = json.loads(response.text)
         
-        result = json.loads(response.choices[0].message.content)
         recommendations = []
         
         for rec in result['recommendations']:
@@ -531,7 +599,8 @@ async def generate_casual_response(
     message: str,
     sentiment_result: SentimentResult,
     intent_analysis: IntentAnalysis,
-    user_profile: Dict[str, Any]
+    user_profile: Dict[str, Any],
+    model: AIModel = "gpt"
 ) -> str:
     """
     상품 추천 없이 일반 대화 응답을 생성합니다.
@@ -541,11 +610,11 @@ async def generate_casual_response(
         sentiment_result: 감정 분석 결과
         intent_analysis: 의도 분석 결과
         user_profile: 사용자 프로필
+        model: 사용할 AI 모델 ("gpt" 또는 "gemini")
         
     Returns:
         str: AI 응답 메시지
     """
-    client = get_openai_client()
     
     user_name = user_profile.get('name', '고객')
     
@@ -572,16 +641,26 @@ async def generate_casual_response(
 """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "당신은 친근하고 공감 능력이 뛰어난 쇼핑 도우미입니다."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.8
-        )
-        
-        return response.choices[0].message.content.strip()
+        if model == "gpt":
+            client = get_openai_client()
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "당신은 친근하고 공감 능력이 뛰어난 쇼핑 도우미입니다."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.8
+            )
+            return response.choices[0].message.content.strip()
+        else:  # gemini
+            client = get_gemini_client()
+            response = client.generate_content(
+                f"당신은 친근하고 공감 능력이 뛰어난 쇼핑 도우미입니다.\n\n{prompt}",
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.8
+                )
+            )
+            return response.text.strip()
         
     except Exception as e:
         print(f"일반 응답 생성 오류: {str(e)}")

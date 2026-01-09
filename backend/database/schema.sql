@@ -65,26 +65,7 @@ CREATE INDEX IF NOT EXISTS idx_purchase_count ON products(purchase_count DESC);
 CREATE INDEX IF NOT EXISTS idx_created_at ON products(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_target_gender ON products(target_gender);
 
--- ========== Chat_Messages 테이블 ==========
-CREATE TABLE IF NOT EXISTS chat_messages (
-  message_id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL,
-  sender VARCHAR(20) NOT NULL,  -- 'user' or 'ai'
-  message_text TEXT NOT NULL,
-  
-  sentiment VARCHAR(20),  -- 'positive', 'neutral', 'negative'
-  sentiment_score FLOAT,
-  
-  recommended_products TEXT,  -- JSON 배열: '[1, 4, 5]'
-  
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
-  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
 
-CREATE INDEX IF NOT EXISTS idx_user_id ON chat_messages(user_id);
-CREATE INDEX IF NOT EXISTS idx_sentiment ON chat_messages(sentiment);
-CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_messages(created_at DESC);
 
 -- ========== Purchase_History 테이블 ==========
 CREATE TABLE IF NOT EXISTS purchase_history (
@@ -107,7 +88,6 @@ CREATE INDEX IF NOT EXISTS idx_purchase_user_date ON purchase_history(user_id, p
 -- ========== 코멘트 ==========
 COMMENT ON TABLE users IS '사용자 프로필 정보';
 COMMENT ON TABLE products IS '상품 정보 및 타겟팅 데이터';
-COMMENT ON TABLE chat_messages IS 'AI 챗봇 대화 내역 및 감정 분석 결과';
 COMMENT ON TABLE purchase_history IS '사용자 구매이력';
 
 COMMENT ON COLUMN products.target_age_groups IS 'JSON 배열: ["20s", "30s", "40s", "50s+"]';

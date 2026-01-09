@@ -53,6 +53,11 @@ export default function UserSwitchBottomSheet({
       parts.push(user.maritalStatus);
     }
     
+    // 구매 패턴
+    if (user.purchasePattern) {
+      parts.push(user.purchasePattern);
+    }
+    
     return parts.join(' · ');
   };
 

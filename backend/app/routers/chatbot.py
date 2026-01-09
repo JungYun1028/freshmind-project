@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
     user_profile: Optional[Dict[str, Any]] = None
     products: List[Dict[str, Any]]  # 프론트엔드에서 전달받은 상품 목록
     purchase_history: Optional[List[Dict[str, Any]]] = []  # 구매이력 데이터 (신규)
+    model: str = "gpt"  # AI 모델 선택: "gpt" 또는 "gemini"
 
 
 class ChatResponse(BaseModel):
@@ -26,6 +27,7 @@ class ChatResponse(BaseModel):
     sentiment_score: float
     keywords: List[str]
     recommended_products: List[Dict[str, Any]]  # 추천 상품들
+    model_used: str  # 사용된 AI 모델
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -39,13 +41,16 @@ async def chat(request: ChatRequest):
     """
     try:
         user_profile = request.user_profile or {}
+        model = request.model if request.model in ["gpt", "gemini"] else "gpt"
+        
+        print(f"🤖 사용 모델: {model.upper()}")
         
         # 1. 의도 분석 (상품 추천이 필요한가?)
-        intent_analysis = await analyze_intent(request.message)
+        intent_analysis = await analyze_intent(request.message, model=model)
         print(f"🔍 의도 분석: {intent_analysis.intent_type}, 상품 추천 필요: {intent_analysis.needs_product_recommendation}")
         
         # 2. 감정 분석
-        sentiment_result = await analyze_sentiment(request.message)
+        sentiment_result = await analyze_sentiment(request.message, model=model)
         print(f"💭 감정: {sentiment_result.sentiment} ({sentiment_result.score})")
         
         recommended_products_detail = []
@@ -59,7 +64,8 @@ async def chat(request: ChatRequest):
                 sentiment_result=sentiment_result,
                 user_profile=user_profile,
                 all_products=request.products,
-                purchase_history=request.purchase_history or []  # 구매이력 전달
+                purchase_history=request.purchase_history or [],  # 구매이력 전달
+                model=model
             )
             
             # 추천 상품 상세 정보 구성
@@ -91,7 +97,8 @@ async def chat(request: ChatRequest):
                 message=request.message,
                 sentiment_result=sentiment_result,
                 intent_analysis=intent_analysis,
-                user_profile=user_profile
+                user_profile=user_profile,
+                model=model
             )
         
         return ChatResponse(
@@ -99,7 +106,8 @@ async def chat(request: ChatRequest):
             sentiment=sentiment_result.sentiment,
             sentiment_score=sentiment_result.score,
             keywords=sentiment_result.keywords,
-            recommended_products=recommended_products_detail
+            recommended_products=recommended_products_detail,
+            model_used=model
         )
         
     except Exception as e:

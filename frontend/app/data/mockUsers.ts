@@ -8,7 +8,8 @@ export const mockUsers: UserProfile[] = [
     gender: 'F',
     ageGroup: '20s',
     occupation: '대학생',
-    maritalStatus: '미혼'
+    maritalStatus: '미혼',
+    purchasePattern: '간편식 구매 선호'
   },
   {
     name: '박민수',
@@ -16,7 +17,8 @@ export const mockUsers: UserProfile[] = [
     gender: 'M',
     ageGroup: '30s',
     occupation: '직장인',
-    maritalStatus: '기혼'
+    maritalStatus: '기혼',
+    purchasePattern: '밀키트·해산물 선호'
   },
   {
     name: '이영희',
@@ -24,7 +26,8 @@ export const mockUsers: UserProfile[] = [
     gender: 'F',
     ageGroup: '40s',
     occupation: '직장인',
-    maritalStatus: '기혼'
+    maritalStatus: '기혼',
+    purchasePattern: '건강식·채소 선호'
   }
 ];
 

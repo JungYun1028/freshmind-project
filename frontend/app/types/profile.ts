@@ -6,6 +6,7 @@ export interface UserProfile {
   ageGroup: '10s' | '20s' | '30s' | '40s' | '50s+';
   occupation?: '대학생' | '직장인' | '주부' | '기타';
   maritalStatus?: '미혼' | '기혼';
+  purchasePattern?: string; // 구매 패턴 요약 (예: '간편식 구매 선호')
 }
 
 // 생년월일로 나이대 계산
