@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   birth_date DATE NOT NULL,
   gender VARCHAR(10),  -- 'M', 'F', 'U'
   age_group VARCHAR(10),  -- '10s', '20s', '30s', '40s', '50s+'
+  occupation VARCHAR(50),  -- '대학생', '직장인', '주부', '기타'
+  marital_status VARCHAR(20),  -- '미혼', '기혼'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -15,15 +17,17 @@ CREATE INDEX IF NOT EXISTS idx_gender_age ON users(gender, age_group);
 
 -- ========== Users 더미 데이터 (가상 유저 계정 3개) ==========
 -- 가상 유저 계정 삽입 (재실행 시 자동 업데이트)
-INSERT INTO users (user_id, name, birth_date, gender, age_group) VALUES
-  (1, '김지은', '2004-03-15', 'F', '20s'),  -- 20대 대학생 여성 (1인 가구, 자취생, 간편식 선호)
-  (2, '박민수', '1989-07-22', 'M', '30s'),  -- 30대 중반 직장인 남성 (2인 가구, 기혼, 밀키트·요리 선호)
-  (3, '이영희', '1979-11-08', 'F', '40s')   -- 40대 중반 직장인 여성 (3인 가구, 기혼, 건강식·아동 식품 선호)
+INSERT INTO users (user_id, name, birth_date, gender, age_group, occupation, marital_status) VALUES
+  (1, '김지은', '2004-03-15', 'F', '20s', '대학생', '미혼'),  -- 간편식 선호는 구매이력으로 분석
+  (2, '박민수', '1989-07-22', 'M', '30s', '직장인', '기혼'),  -- 밀키트 선호는 구매이력으로 분석
+  (3, '이영희', '1979-11-08', 'F', '40s', '직장인', '기혼')   -- 건강식 선호는 구매이력으로 분석
 ON CONFLICT (user_id) DO UPDATE SET
   name = EXCLUDED.name,
   birth_date = EXCLUDED.birth_date,
   gender = EXCLUDED.gender,
-  age_group = EXCLUDED.age_group;
+  age_group = EXCLUDED.age_group,
+  occupation = EXCLUDED.occupation,
+  marital_status = EXCLUDED.marital_status;
 
 -- user_id 시퀀스 재설정 (다음 INSERT 시 4부터 시작)
 SELECT setval('users_user_id_seq', GREATEST(3, (SELECT MAX(user_id) FROM users)));

@@ -18,6 +18,8 @@ class User(Base):
     birth_date = Column(DateTime, nullable=False)
     gender = Column(String(10))  # 'M', 'F', 'U'
     age_group = Column(String(10))  # '10s', '20s', '30s', '40s', '50s+'
+    occupation = Column(String(50))  # '대학생', '직장인', '주부', '기타'
+    marital_status = Column(String(20))  # '미혼', '기혼'
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships

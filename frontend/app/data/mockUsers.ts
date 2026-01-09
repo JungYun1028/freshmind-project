@@ -6,19 +6,25 @@ export const mockUsers: UserProfile[] = [
     name: '김지은',
     birthDate: '2004-03-15',
     gender: 'F',
-    ageGroup: '20s'
+    ageGroup: '20s',
+    occupation: '대학생',
+    maritalStatus: '미혼'
   },
   {
     name: '박민수',
     birthDate: '1989-07-22',
     gender: 'M',
-    ageGroup: '30s'
+    ageGroup: '30s',
+    occupation: '직장인',
+    maritalStatus: '기혼'
   },
   {
     name: '이영희',
     birthDate: '1979-11-08',
     gender: 'F',
-    ageGroup: '40s'
+    ageGroup: '40s',
+    occupation: '직장인',
+    maritalStatus: '기혼'
   }
 ];
 

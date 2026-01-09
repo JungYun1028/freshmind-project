@@ -4,6 +4,8 @@ export interface UserProfile {
   birthDate: string; // YYYY-MM-DD
   gender: 'M' | 'F' | 'U';
   ageGroup: '10s' | '20s' | '30s' | '40s' | '50s+';
+  occupation?: '대학생' | '직장인' | '주부' | '기타';
+  maritalStatus?: '미혼' | '기혼';
 }
 
 // 생년월일로 나이대 계산

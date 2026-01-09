@@ -15,6 +15,8 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState<'M' | 'F' | 'U'>('U');
+  const [occupation, setOccupation] = useState<'대학생' | '직장인' | '주부' | '기타'>('대학생');
+  const [maritalStatus, setMaritalStatus] = useState<'미혼' | '기혼'>('미혼');
 
   // 기존 프로필 데이터 불러오기
   useEffect(() => {
@@ -22,6 +24,8 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       setName(profile.name);
       setBirthDate(profile.birthDate);
       setGender(profile.gender);
+      setOccupation(profile.occupation || '대학생');
+      setMaritalStatus(profile.maritalStatus || '미혼');
     }
   }, [profile]);
 
@@ -39,7 +43,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       name,
       birthDate,
       gender,
-      ageGroup
+      ageGroup,
+      occupation,
+      maritalStatus
     };
 
     setProfile(newProfile);
@@ -134,6 +140,60 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   }`}
                 >
                   선택안함
+                </button>
+              </div>
+            </div>
+
+            {/* 직업 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                직업
+              </label>
+              <div className="grid grid-cols-4 gap-3">
+                {(['대학생', '직장인', '주부', '기타'] as const).map((occ) => (
+                  <button
+                    key={occ}
+                    type="button"
+                    onClick={() => setOccupation(occ)}
+                    className={`py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                      occupation === occ
+                        ? 'border-purple-600 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {occ}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 혼인여부 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                혼인여부
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMaritalStatus('미혼')}
+                  className={`py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                    maritalStatus === '미혼'
+                      ? 'border-purple-600 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  미혼
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMaritalStatus('기혼')}
+                  className={`py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                    maritalStatus === '기혼'
+                      ? 'border-purple-600 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  기혼
                 </button>
               </div>
             </div>

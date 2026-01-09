@@ -31,14 +31,29 @@ export default function UserSwitchBottomSheet({
   if (!isOpen) return null;
 
   const getUserDescription = (user: UserProfile): string => {
-    if (user.name === '김지은') {
-      return '20대 대학생 여성 · 자취생 · 간편식 선호';
-    } else if (user.name === '박민수') {
-      return '30대 중반 직장인 남성 · 기혼 · 밀키트·요리 선호';
-    } else if (user.name === '이영희') {
-      return '40대 중반 직장인 여성 · 기혼 · 건강식·아동 식품 선호';
+    const parts: string[] = [];
+    
+    // 연령대
+    parts.push(user.ageGroup);
+    
+    // 직업
+    if (user.occupation) {
+      parts.push(user.occupation);
     }
-    return '';
+    
+    // 성별
+    if (user.gender === 'M') {
+      parts.push('남성');
+    } else if (user.gender === 'F') {
+      parts.push('여성');
+    }
+    
+    // 혼인여부
+    if (user.maritalStatus) {
+      parts.push(user.maritalStatus);
+    }
+    
+    return parts.join(' · ');
   };
 
   const getInitials = (name: string): string => {
