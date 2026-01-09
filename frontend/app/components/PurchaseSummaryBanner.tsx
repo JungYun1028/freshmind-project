@@ -44,6 +44,12 @@ export default function PurchaseSummaryBanner({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ mainText: string; emoji: string } | null>(null);
   const [productChips, setProductChips] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  // Hydration 이슈 방지: 클라이언트에서만 렌더링
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 가중치 계산 함수들 (백엔드 purchase_insights.py와 동일한 로직)
   const calculateTimeWeight = (purchasedAt: Date): number => {
@@ -268,7 +274,8 @@ export default function PurchaseSummaryBanner({
 
   const insight = message;
 
-  if (loading) {
+  // Hydration 완료 전에는 로딩 표시
+  if (!mounted || loading) {
     return (
       <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 border-b border-purple-100">
         <div className="px-4 py-4">

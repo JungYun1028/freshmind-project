@@ -21,6 +21,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [sortBy, setSortBy] = useState("popular");
   const [isUserSwitchOpen, setIsUserSwitchOpen] = useState(false);
+  const [recommendedProductIds, setRecommendedProductIds] = useState<number[]>([]);
 
   // 프로필이 설정되면 자동으로 개인화 추천순으로 변경
   useEffect(() => {
@@ -384,6 +385,12 @@ export default function Home() {
   const filteredProducts = useMemo(() => {
     let filtered = products;
 
+    // AI 추천 상품 필터 (최우선)
+    if (recommendedProductIds.length > 0) {
+      filtered = filtered.filter(p => recommendedProductIds.includes(p.id));
+      return filtered; // 추천 상품만 표시하고 바로 리턴
+    }
+
     // 카테고리 필터
     if (selectedCategory === "핫한 요리") {
       // 핫한 요리: 트렌드 상품 표시
@@ -542,7 +549,7 @@ export default function Home() {
     }
 
     return sorted;
-  }, [searchQuery, selectedCategory, sortBy, isProfileSet, profile]);
+  }, [searchQuery, selectedCategory, sortBy, isProfileSet, profile, recommendedProductIds]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -601,11 +608,34 @@ export default function Home() {
         onSelectUser={handleUserSelect}
       />
       
+      {/* AI 추천 상품 표시 중일 때 배너 */}
+      {recommendedProductIds.length > 0 && (
+        <div className="fixed top-16 left-0 right-0 z-40 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 shadow-lg">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🤖</span>
+              <span className="font-semibold">AI 추천 상품 {recommendedProductIds.length}개</span>
+            </div>
+            <button
+              onClick={() => setRecommendedProductIds([])}
+              className="flex items-center gap-1 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-full text-sm font-medium transition-colors"
+            >
+              <span>전체 상품 보기</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* AI 챗봇 부동 버튼 */}
       <ChatBotButton 
         onShowRecommendedProducts={(productIds) => {
-          // 추천 상품 표시 로직 (향후 구현)
-          console.log('추천 상품 ID:', productIds);
+          setRecommendedProductIds(productIds);
+          setSelectedCategory("전체"); // 카테고리 필터 초기화
+          setSortBy("popular"); // 정렬 초기화
+          window.scrollTo({ top: 0, behavior: 'smooth' }); // 맨 위로 스크롤
         }}
       />
     </div>
